@@ -1,26 +1,24 @@
 {
   "name": "winmd-explorer",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
+  "productName": "WinMD Explorer",
+  "version": "1.0.0",
+  "description": "A Windows 11-styled Markdown file explorer",
+  "main": "main.js",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "start": "electron .",
+    "package": "electron-forge package",
+    "make": "electron-forge make"
   },
+  "keywords": [],
+  "author": "WinMD",
+  "license": "MIT",
   "dependencies": {
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
-    "@google/genai": "^1.34.0",
-    "lucide-react": "^0.562.0",
-    "react-markdown": "^10.1.0",
-    "remark-gfm": "^4.0.1",
-    "remark-breaks": "^4.0.0"
+    "serve-handler": "^6.1.6"
   },
   "devDependencies": {
-    "@types/node": "^22.14.0",
-    "@vitejs/plugin-react": "^5.0.0",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "@electron-forge/cli": "^7.6.0",
+    "@electron-forge/maker-squirrel": "^7.6.0",
+    "@electron-forge/maker-zip": "^7.6.0",
+    "electron": "^33.2.1"
   }
 }
