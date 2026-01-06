@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WinMD Explorer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/1f4c1.png">
+    <meta name="theme-color" content="#202020">
+    <style>
+      body {
+        font-family: 'Segoe UI', sans-serif;
+        background-color: #000;
+        color: #fff;
+        overflow: hidden; /* App-like feel */
+      }
+      /* Custom Scrollbar for Windows feel */
+      ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #444;
+        border-radius: 5px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #555;
+      }
+      /* Markdown Styles */
+      .markdown-body h1 { font-size: 2em; font-weight: 600; margin-bottom: 0.5em; border-bottom: 1px solid #333; padding-bottom: 0.3em; }
+      .markdown-body h2 { font-size: 1.5em; font-weight: 600; margin-top: 1em; margin-bottom: 0.5em; }
+      .markdown-body h3 { font-size: 1.25em; font-weight: 600; margin-top: 1em; margin-bottom: 0.5em; }
+      .markdown-body p { margin-bottom: 1em; line-height: 1.6; }
+      .markdown-body ul { list-style-type: disc; padding-left: 1.5em; margin-bottom: 1em; }
+      .markdown-body ol { list-style-type: decimal; padding-left: 1.5em; margin-bottom: 1em; }
+      .markdown-body code { background-color: #333; padding: 0.2em 0.4em; border-radius: 4px; font-family: monospace; font-size: 0.9em; }
+      .markdown-body pre { background-color: #1e1e1e; padding: 1em; border-radius: 6px; overflow-x: auto; margin-bottom: 1em; }
+      .markdown-body pre code { background-color: transparent; padding: 0; }
+      .markdown-body blockquote { border-left: 4px solid #0078d4; padding-left: 1em; color: #aaa; margin-left: 0; margin-bottom: 1em; }
+      .markdown-body a { color: #4cc2ff; text-decoration: none; }
+      .markdown-body a:hover { text-decoration: underline; }
+      .markdown-body table { width: 100%; border-collapse: collapse; margin-bottom: 1em; }
+      .markdown-body th, .markdown-body td { border: 1px solid #444; padding: 8px; text-align: left; }
+      .markdown-body th { background-color: #2d2d2d; }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "react-markdown": "https://esm.sh/react-markdown@^10.1.0",
+    "remark-gfm": "https://esm.sh/remark-gfm@^4.0.1",
+    "remark-breaks": "https://esm.sh/remark-breaks@^4.0.0"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

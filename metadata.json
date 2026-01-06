@@ -1,0 +1,5 @@
+{
+  "name": "WinMD Explorer",
+  "description": "A Windows 11-styled Markdown file explorer and viewer featuring built-in Gemini AI for summarization, translation, and document Q&A.",
+  "requestFramePermissions": []
+}
