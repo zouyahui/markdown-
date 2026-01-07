@@ -8,7 +8,7 @@ import { MarkdownEditor } from './components/MarkdownEditor';
 import { AIAssistant } from './components/AIAssistant';
 import { HelpDialog } from './components/HelpDialog';
 import { SettingsDialog } from './components/SettingsDialog';
-import { FileDoc, ChatMessage, Language } from './types';
+import { FileDoc, ChatMessage, Language, AIProvider, DEFAULT_LOCAL_CONFIG, MCPServerConfig } from './types';
 import { translations } from './translations';
 import { Sparkles, Layout, PenTool, Eye, Save, MapPin, PanelLeftClose, PanelLeft } from 'lucide-react';
 
@@ -41,8 +41,14 @@ const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isSplitView, setIsSplitView] = useState(false);
+  
+  // Settings State
   const [apiKey, setApiKey] = useState('');
   const [language, setLanguage] = useState<Language>('en');
+  const [aiProvider, setAiProvider] = useState<AIProvider>('gemini');
+  const [localBaseUrl, setLocalBaseUrl] = useState(DEFAULT_LOCAL_CONFIG.baseUrl);
+  const [localModelName, setLocalModelName] = useState(DEFAULT_LOCAL_CONFIG.model);
+  const [mcpServers, setMcpServers] = useState<MCPServerConfig[]>([]);
   
   // Hidden input for browser fallback
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -107,14 +113,52 @@ const App: React.FC = () => {
   // Load Settings from local storage
   useEffect(() => {
     const savedKey = localStorage.getItem('winmd_apikey');
-    if (savedKey) {
-        setApiKey(savedKey);
-    }
+    if (savedKey) setApiKey(savedKey);
+
     const savedLang = localStorage.getItem('winmd_language') as Language;
-    if (savedLang && (savedLang === 'en' || savedLang === 'zh')) {
-        setLanguage(savedLang);
+    if (savedLang && (savedLang === 'en' || savedLang === 'zh')) setLanguage(savedLang);
+
+    const savedProvider = localStorage.getItem('winmd_ai_provider') as AIProvider;
+    if (savedProvider && (savedProvider === 'gemini' || savedProvider === 'local')) setAiProvider(savedProvider);
+
+    const savedBaseUrl = localStorage.getItem('winmd_local_base_url');
+    if (savedBaseUrl) setLocalBaseUrl(savedBaseUrl);
+
+    const savedModelName = localStorage.getItem('winmd_local_model_name');
+    if (savedModelName) setLocalModelName(savedModelName);
+
+    const savedMcpServers = localStorage.getItem('winmd_mcp_servers');
+    if (savedMcpServers) {
+        try {
+            setMcpServers(JSON.parse(savedMcpServers));
+        } catch (e) {
+            console.error("Failed to parse MCP servers", e);
+        }
     }
   }, []);
+
+  // --- MCP Backend Connection Logic ---
+  useEffect(() => {
+    const connectToMcp = async () => {
+        const ipc = getIpcRenderer();
+        if (ipc && mcpServers.length > 0) {
+            try {
+                console.log("Connecting to MCP servers...", mcpServers);
+                const results = await ipc.invoke('mcp-connect', mcpServers);
+                console.log("MCP Connect Results:", results);
+            } catch (e) {
+                console.error("Failed to connect to MCP servers via IPC", e);
+            }
+        }
+    };
+    
+    // Debounce slightly or just run when mcpServers changes
+    if (mcpServers.length > 0) {
+        const timeout = setTimeout(connectToMcp, 1000); // 1s delay to allow typing to finish if user is editing
+        return () => clearTimeout(timeout);
+    }
+  }, [mcpServers]);
+
 
   const handleSaveApiKey = (key: string) => {
     setApiKey(key);
@@ -124,6 +168,26 @@ const App: React.FC = () => {
   const handleLanguageChange = (lang: Language) => {
     setLanguage(lang);
     localStorage.setItem('winmd_language', lang);
+  };
+
+  const handleAiProviderChange = (provider: AIProvider) => {
+    setAiProvider(provider);
+    localStorage.setItem('winmd_ai_provider', provider);
+  };
+
+  const handleLocalBaseUrlChange = (url: string) => {
+    setLocalBaseUrl(url);
+    localStorage.setItem('winmd_local_base_url', url);
+  };
+
+  const handleLocalModelNameChange = (name: string) => {
+    setLocalModelName(name);
+    localStorage.setItem('winmd_local_model_name', name);
+  };
+
+  const handleMcpServersChange = (servers: MCPServerConfig[]) => {
+      setMcpServers(servers);
+      localStorage.setItem('winmd_mcp_servers', JSON.stringify(servers));
   };
 
   // Load from LocalStorage on mount
@@ -909,6 +973,10 @@ graph TD
                     apiKey={apiKey}
                     language={language}
                     allFiles={files}
+                    // New Props for AI Provider
+                    aiProvider={aiProvider}
+                    localBaseUrl={localBaseUrl}
+                    localModelName={localModelName}
                 />
              )}
            </div>
@@ -928,6 +996,16 @@ graph TD
         onSaveApiKey={handleSaveApiKey}
         language={language}
         onLanguageChange={handleLanguageChange}
+        // New Props for AI Provider
+        aiProvider={aiProvider}
+        onAiProviderChange={handleAiProviderChange}
+        localBaseUrl={localBaseUrl}
+        onLocalBaseUrlChange={handleLocalBaseUrlChange}
+        localModelName={localModelName}
+        onLocalModelNameChange={handleLocalModelNameChange}
+        // MCP Props
+        mcpServers={mcpServers}
+        onMcpServersChange={handleMcpServersChange}
       />
     </div>
   );

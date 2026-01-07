@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Sparkles, Send, X, Bot, User, Loader2, FileText, ChevronDown, Copy, Check, Paperclip, Trash2 } from 'lucide-react';
-import { ChatMessage, MessageRole, AVAILABLE_MODELS, Language, FileDoc } from '../types';
+import { ChatMessage, MessageRole, AVAILABLE_MODELS, Language, FileDoc, AIProvider } from '../types';
 import { chatWithDocument, summarizeMarkdown } from '../services/geminiService';
 import { translations } from '../translations';
 
@@ -14,6 +14,9 @@ interface AIAssistantProps {
   apiKey: string;
   language: Language;
   allFiles: FileDoc[];
+  aiProvider: AIProvider;
+  localBaseUrl: string;
+  localModelName: string;
 }
 
 export const AIAssistant: React.FC<AIAssistantProps> = ({ 
@@ -25,7 +28,10 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
     onUpdateChatHistory,
     apiKey,
     language,
-    allFiles
+    allFiles,
+    aiProvider,
+    localBaseUrl,
+    localModelName
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>(chatHistory);
   const [input, setInput] = useState('');
@@ -65,11 +71,6 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
   const handleSendMessage = async () => {
     if ((!input.trim() && attachedContext.length === 0) || isLoading) return;
 
-    let userText = input;
-    // If context is attached, append it to the hidden prompt, but maybe not show it in the bubble to keep it clean.
-    // However, the `chatWithDocument` function currently takes `newMessage` as string.
-    // We will append the context contextually.
-
     let fullPrompt = input;
     if (attachedContext.length > 0) {
         const contextStr = attachedContext.map(c => `File: ${c.name}\nContent:\n${c.content}`).join('\n\n');
@@ -87,7 +88,16 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
     setAttachedContext([]); // Clear context after sending
     setIsLoading(true);
 
-    const responseText = await chatWithDocument(markdownContent, messages, fullPrompt, selectedModel, apiKey, language);
+    const responseText = await chatWithDocument(
+        markdownContent, 
+        messages, 
+        fullPrompt, 
+        selectedModel, 
+        apiKey, 
+        language,
+        aiProvider,
+        { baseUrl: localBaseUrl, model: localModelName }
+    );
 
     const botMsg: ChatMessage = {
       id: (Date.now() + 1).toString(),
@@ -110,7 +120,14 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
     setMessages(prev => [...prev, userMsg]);
     setIsLoading(true);
 
-    const summary = await summarizeMarkdown(markdownContent, selectedModel, apiKey, language);
+    const summary = await summarizeMarkdown(
+        markdownContent, 
+        selectedModel, 
+        apiKey, 
+        language,
+        aiProvider,
+        { baseUrl: localBaseUrl, model: localModelName }
+    );
     
     const botMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -201,19 +218,25 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
           <span className="font-semibold text-sm">{t.title}</span>
         </div>
 
-        {/* Model Selector */}
-        <div className="relative group">
-            <select 
-                value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
-                className="appearance-none bg-[#333] hover:bg-[#3d3d3d] text-xs text-gray-200 py-1 pl-2 pr-6 rounded border border-[#444] outline-none cursor-pointer transition-colors w-32 truncate"
-            >
-                {AVAILABLE_MODELS.map(model => (
-                    <option key={model.id} value={model.id}>{model.name}</option>
-                ))}
-            </select>
-            <ChevronDown size={12} className="absolute right-2 top-1.5 text-gray-400 pointer-events-none" />
-        </div>
+        {/* Model Selector - Only show for Gemini */}
+        {aiProvider === 'gemini' ? (
+            <div className="relative group">
+                <select 
+                    value={selectedModel}
+                    onChange={(e) => setSelectedModel(e.target.value)}
+                    className="appearance-none bg-[#333] hover:bg-[#3d3d3d] text-xs text-gray-200 py-1 pl-2 pr-6 rounded border border-[#444] outline-none cursor-pointer transition-colors w-32 truncate"
+                >
+                    {AVAILABLE_MODELS.map(model => (
+                        <option key={model.id} value={model.id}>{model.name}</option>
+                    ))}
+                </select>
+                <ChevronDown size={12} className="absolute right-2 top-1.5 text-gray-400 pointer-events-none" />
+            </div>
+        ) : (
+            <div className="text-xs text-gray-400 bg-[#333] px-2 py-1 rounded truncate max-w-[120px]" title={localModelName}>
+                {localModelName}
+            </div>
+        )}
 
         <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors ml-2">
           <X size={16} />
@@ -225,7 +248,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
         {messages.map((msg) => (
           <div key={msg.id} className={`flex items-start space-x-2 group ${msg.role === MessageRole.User ? 'flex-row-reverse space-x-reverse' : ''}`}>
             {/* Avatar */}
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${msg.role === MessageRole.User ? 'bg-[#333]' : 'bg-[#0078d4]'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${msg.role === MessageRole.User ? 'bg-[#333]' : (aiProvider === 'local' ? 'bg-[#e8b339]' : 'bg-[#0078d4]')}`}>
               {msg.role === MessageRole.User ? <User size={14} className="text-gray-300" /> : <Bot size={14} className="text-white" />}
             </div>
             
