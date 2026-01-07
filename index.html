@@ -6,6 +6,7 @@
     <title>WinMD Explorer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
     <link rel="manifest" href="/manifest.json">
     <link rel="apple-touch-icon" href="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/1f4c1.png">
     <meta name="theme-color" content="#202020">
@@ -31,22 +32,113 @@
       ::-webkit-scrollbar-thumb:hover {
         background: #555;
       }
-      /* Markdown Styles */
-      .markdown-body h1 { font-size: 2em; font-weight: 600; margin-bottom: 0.5em; border-bottom: 1px solid #333; padding-bottom: 0.3em; }
-      .markdown-body h2 { font-size: 1.5em; font-weight: 600; margin-top: 1em; margin-bottom: 0.5em; }
-      .markdown-body h3 { font-size: 1.25em; font-weight: 600; margin-top: 1em; margin-bottom: 0.5em; }
-      .markdown-body p { margin-bottom: 1em; line-height: 1.6; }
-      .markdown-body ul { list-style-type: disc; padding-left: 1.5em; margin-bottom: 1em; }
-      .markdown-body ol { list-style-type: decimal; padding-left: 1.5em; margin-bottom: 1em; }
-      .markdown-body code { background-color: #333; padding: 0.2em 0.4em; border-radius: 4px; font-family: monospace; font-size: 0.9em; }
-      .markdown-body pre { background-color: #1e1e1e; padding: 1em; border-radius: 6px; overflow-x: auto; margin-bottom: 1em; }
-      .markdown-body pre code { background-color: transparent; padding: 0; }
-      .markdown-body blockquote { border-left: 4px solid #0078d4; padding-left: 1em; color: #aaa; margin-left: 0; margin-bottom: 1em; }
-      .markdown-body a { color: #4cc2ff; text-decoration: none; }
+      
+      /* Markdown Body Base */
+      .markdown-body {
+        font-size: 15px;
+        line-height: 1.6;
+        color: #d4d4d4;
+      }
+
+      /* Headings */
+      .markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4 {
+        color: #fff;
+        font-weight: 600;
+        margin-top: 24px;
+        margin-bottom: 16px;
+        line-height: 1.25;
+      }
+      .markdown-body h1 { font-size: 2em; padding-bottom: 0.3em; border-bottom: 1px solid #333; }
+      .markdown-body h2 { font-size: 1.5em; padding-bottom: 0.3em; border-bottom: 1px solid #30363d; }
+      .markdown-body h3 { font-size: 1.25em; }
+
+      /* Links */
+      .markdown-body a { color: #58a6ff; text-decoration: none; }
       .markdown-body a:hover { text-decoration: underline; }
-      .markdown-body table { width: 100%; border-collapse: collapse; margin-bottom: 1em; }
-      .markdown-body th, .markdown-body td { border: 1px solid #444; padding: 8px; text-align: left; }
-      .markdown-body th { background-color: #2d2d2d; }
+
+      /* Paragraphs & Lists */
+      .markdown-body p { margin-bottom: 16px; }
+      .markdown-body ul, .markdown-body ol { padding-left: 2em; margin-bottom: 16px; }
+      .markdown-body li { margin-top: 0.25em; }
+      .markdown-body li > p { margin-top: 16px; }
+
+      /* Task Lists (GFM) */
+      .markdown-body ul.contains-task-list { list-style-type: none; padding-left: 0; }
+      .markdown-body li.task-list-item { display: flex; align-items: flex-start; }
+      .markdown-body li.task-list-item input[type="checkbox"] { margin-right: 8px; margin-top: 5px; accent-color: #0078d4; }
+
+      /* Code & Pre */
+      .markdown-body code {
+        background-color: rgba(110,118,129,0.4);
+        padding: 0.2em 0.4em;
+        border-radius: 6px;
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 85%;
+      }
+      .markdown-body pre {
+        background-color: #161b22;
+        border-radius: 6px;
+        padding: 16px;
+        overflow: auto;
+        margin-bottom: 16px;
+        border: 1px solid #30363d;
+      }
+      .markdown-body pre code {
+        background-color: transparent;
+        padding: 0;
+        font-size: 100%;
+        color: inherit;
+      }
+
+      /* Blockquotes */
+      .markdown-body blockquote {
+        margin: 0 0 16px;
+        padding: 0 1em;
+        color: #8b949e;
+        border-left: 0.25em solid #30363d;
+      }
+
+      /* Tables */
+      .markdown-body table {
+        border-spacing: 0;
+        border-collapse: collapse;
+        margin-bottom: 16px;
+        width: 100%;
+        display: block;
+        overflow: auto;
+      }
+      .markdown-body tr {
+        background-color: #0d1117;
+        border-top: 1px solid #30363d;
+      }
+      .markdown-body tr:nth-child(2n) {
+        background-color: #161b22;
+      }
+      .markdown-body th, .markdown-body td {
+        padding: 6px 13px;
+        border: 1px solid #30363d;
+      }
+      .markdown-body th {
+        font-weight: 600;
+      }
+
+      /* Images */
+      .markdown-body img {
+        max-width: 100%;
+        box-sizing: border-box;
+        background-color: #0d1117;
+        border-radius: 6px;
+      }
+      
+      /* Mermaid container centering */
+      .mermaid-container {
+        display: flex;
+        justify-content: center;
+        background: #0d1117;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 1em;
+      }
     </style>
   <script type="importmap">
 {
@@ -58,7 +150,14 @@
     "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
     "react-markdown": "https://esm.sh/react-markdown@^10.1.0",
     "remark-gfm": "https://esm.sh/remark-gfm@^4.0.1",
-    "remark-breaks": "https://esm.sh/remark-breaks@^4.0.0"
+    "remark-breaks": "https://esm.sh/remark-breaks@^4.0.0",
+    "remark-math": "https://esm.sh/remark-math@^6.0.0",
+    "rehype-katex": "https://esm.sh/rehype-katex@^7.0.0",
+    "react-syntax-highlighter": "https://esm.sh/react-syntax-highlighter@15.5.0?external=react",
+    "react-syntax-highlighter/dist/esm/styles/prism": "https://esm.sh/react-syntax-highlighter@15.5.0/dist/esm/styles/prism?external=react",
+    "@monaco-editor/react": "https://esm.sh/@monaco-editor/react@^4.6.0",
+    "mermaid": "https://esm.sh/mermaid@10.9.0",
+    "react-syntax-highlighter/": "https://esm.sh/react-syntax-highlighter@^16.1.0/"
   }
 }
 </script>

@@ -1,6 +1,7 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const path = require('path');
 const http = require('http');
+const fs = require('fs');
 const handler = require('serve-handler');
 
 // Global reference to prevent garbage collection
@@ -68,6 +69,56 @@ const createWindow = async () => {
     if (fullPath) {
       shell.showItemInFolder(fullPath);
     }
+  });
+
+  // --- Native File System Operations ---
+
+  // Read File
+  ipcMain.handle('read-file', async (event, filePath) => {
+    try {
+      const content = await fs.promises.readFile(filePath, 'utf8');
+      const stats = await fs.promises.stat(filePath);
+      return { content, lastModified: stats.mtimeMs };
+    } catch (error) {
+      console.error('Failed to read file:', error);
+      throw error;
+    }
+  });
+
+  // Write File
+  ipcMain.handle('write-file', async (event, filePath, content) => {
+    try {
+      await fs.promises.writeFile(filePath, content, 'utf8');
+      return true;
+    } catch (error) {
+      console.error('Failed to write file:', error);
+      throw error;
+    }
+  });
+
+  // Open File Dialog
+  ipcMain.handle('open-file-dialog', async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openFile', 'multiSelections'],
+      filters: [
+        { name: 'Markdown & Text', extensions: ['md', 'markdown', 'txt'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    });
+    return result.filePaths;
+  });
+
+  // Save File Dialog
+  ipcMain.handle('save-file-dialog', async (event, defaultName) => {
+    const result = await dialog.showSaveDialog(mainWindow, {
+      defaultPath: defaultName,
+      filters: [
+        { name: 'Markdown', extensions: ['md'] },
+        { name: 'Text', extensions: ['txt'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    });
+    return result.filePath;
   });
 };
 

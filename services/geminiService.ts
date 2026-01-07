@@ -1,12 +1,18 @@
 import { GoogleGenAI, Content } from "@google/genai";
 import { ChatMessage, MessageRole } from "../types";
 
-// Initialize Gemini Client
-// Note: API Key must be in process.env.API_KEY
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Helper to create client with user provided key or fallback to env
+const getClient = (apiKey?: string) => {
+    const key = apiKey || process.env.API_KEY;
+    if (!key) {
+        throw new Error("Missing API Key. Please configure it in Settings.");
+    }
+    return new GoogleGenAI({ apiKey: key });
+};
 
-export const summarizeMarkdown = async (markdownContent: string, modelId: string): Promise<string> => {
+export const summarizeMarkdown = async (markdownContent: string, modelId: string, apiKey?: string): Promise<string> => {
   try {
+    const ai = getClient(apiKey);
     const prompt = `Please provide a concise summary of the following Markdown document. Highlight key points and potential action items if any.\n\nDocument Content:\n${markdownContent}`;
     
     const response = await ai.models.generateContent({
@@ -18,9 +24,12 @@ export const summarizeMarkdown = async (markdownContent: string, modelId: string
     });
 
     return response.text || "No summary generated.";
-  } catch (error) {
+  } catch (error: any) {
     console.error("Summarization error:", error);
-    return "Error generating summary. Please check your network or API quota.";
+    if (error.message.includes("Missing API Key")) {
+        return "Please set your Gemini API Key in Settings (Gear icon).";
+    }
+    return "Error generating summary. Please check your API key and network connection.";
   }
 };
 
@@ -28,9 +37,11 @@ export const chatWithDocument = async (
   markdownContent: string,
   history: ChatMessage[],
   newMessage: string,
-  modelId: string
+  modelId: string,
+  apiKey?: string
 ): Promise<string> => {
   try {
+    const ai = getClient(apiKey);
     const contextInstruction = `You are a smart assistant integrated into a Markdown file viewer. 
     The user is currently viewing a file with the following content:
     
@@ -62,8 +73,11 @@ export const chatWithDocument = async (
     
     return response.text || "I couldn't understand that.";
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Chat error:", error);
-    return "Sorry, I encountered an error processing your request.";
+    if (error.message.includes("Missing API Key")) {
+        return "Please set your Gemini API Key in Settings (Gear icon).";
+    }
+    return "Sorry, I encountered an error. Please check your API key.";
   }
 };

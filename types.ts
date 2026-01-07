@@ -7,6 +7,7 @@ export interface FileDoc {
   parentId: string | null;
   path?: string; // Real system path
   isExpanded?: boolean; // For folders UI state
+  chatHistory?: ChatMessage[];
 }
 
 export enum MessageRole {

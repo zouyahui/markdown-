@@ -8,10 +8,21 @@ interface AIAssistantProps {
   onClose: () => void;
   markdownContent: string;
   fileName: string;
+  chatHistory: ChatMessage[];
+  onUpdateChatHistory: (history: ChatMessage[]) => void;
+  apiKey: string;
 }
 
-export const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, markdownContent, fileName }) => {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+export const AIAssistant: React.FC<AIAssistantProps> = ({ 
+    isOpen, 
+    onClose, 
+    markdownContent, 
+    fileName, 
+    chatHistory, 
+    onUpdateChatHistory,
+    apiKey
+}) => {
+  const [messages, setMessages] = useState<ChatMessage[]>(chatHistory);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedModel, setSelectedModel] = useState(AVAILABLE_MODELS[0].id);
@@ -24,6 +35,11 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, markd
     }
   }, [messages, isOpen]);
 
+  // Sync state changes to parent (save to FileDoc)
+  useEffect(() => {
+    onUpdateChatHistory(messages);
+  }, [messages, onUpdateChatHistory]);
+
   // Initial greeting
   useEffect(() => {
     if (isOpen && messages.length === 0) {
@@ -33,7 +49,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, markd
             text: `Hi! I'm your Gemini AI assistant. I've read "${fileName}". Ask me to summarize it or explain any section.`
         }]);
     }
-  }, [isOpen, fileName]);
+  }, [isOpen, fileName]); // messages is intentionally omitted from deps to avoid re-triggering after setting it
 
   const handleSendMessage = async () => {
     if (!input.trim() || isLoading) return;
@@ -48,7 +64,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, markd
     setInput('');
     setIsLoading(true);
 
-    const responseText = await chatWithDocument(markdownContent, messages, userMsg.text, selectedModel);
+    const responseText = await chatWithDocument(markdownContent, messages, userMsg.text, selectedModel, apiKey);
 
     const botMsg: ChatMessage = {
       id: (Date.now() + 1).toString(),
@@ -71,7 +87,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, markd
     setMessages(prev => [...prev, userMsg]);
     setIsLoading(true);
 
-    const summary = await summarizeMarkdown(markdownContent, selectedModel);
+    const summary = await summarizeMarkdown(markdownContent, selectedModel, apiKey);
     
     const botMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),

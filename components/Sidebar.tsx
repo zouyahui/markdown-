@@ -1,31 +1,33 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { FileText, Folder, FolderOpen, Plus, Search, Edit2, ChevronRight, ChevronDown, FolderPlus, LocateFixed } from 'lucide-react';
+import { FileText, Folder, FolderOpen, Plus, Search, Edit2, ChevronRight, ChevronDown, FolderPlus, LocateFixed, Settings } from 'lucide-react';
 import { FileDoc } from '../types';
 
 interface SidebarProps {
   files: FileDoc[];
   activeFileId: string | null;
   onSelectFile: (id: string) => void;
-  onFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onOpenFile: () => void;
   onCreateFile: () => void;
   onCreateFolder: () => void;
   onRenameFile: (id: string, newName: string) => void;
   onMoveFile: (fileId: string, targetFolderId: string | null) => void;
   onToggleFolder: (folderId: string) => void;
   onLocateFile: (file: FileDoc) => void;
+  onOpenSettings: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
   files, 
   activeFileId, 
   onSelectFile, 
-  onFileUpload,
+  onOpenFile,
   onCreateFile,
   onCreateFolder,
   onRenameFile,
   onMoveFile,
   onToggleFolder,
-  onLocateFile
+  onLocateFile,
+  onOpenSettings
 }) => {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [tempName, setTempName] = useState('');
@@ -88,7 +90,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     setDragOverFolderId(null);
     const draggedId = e.dataTransfer.getData('text/plain');
     
-    // Logic handles in App.tsx to prevent self-drop or circular folder drops
     if (draggedId) {
        onMoveFile(draggedId, targetFolderId);
     }
@@ -106,18 +107,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return items.map(item => {
       const isFolder = item.type === 'folder';
       const isRenaming = renamingId === item.id;
-      const isActive = activeFileId === item.id;
+      // const isActive = activeFileId === item.id; // Sidebar doesn't strictly show "Active" state if using tabs, but we can highlight selected.
       
       // Calculate padding based on depth
       const paddingLeft = `${depth * 12 + 12}px`;
-
-      // Determine effective drop target
-      // If dragging over a folder, target is that folder.
-      // If dragging over a file, target is that file's parent (so we can drop "next to" it).
       const dropTargetId = isFolder ? item.id : item.parentId;
-      
-      // Highlight logic: if we are dragging over this folder OR dragging over a child of this folder (conceptually), highlight it.
-      // But since we use dropTargetId in handleDragOver, dragOverFolderId will equal this folder's ID when hovering children.
       const isDragTarget = isFolder && dragOverFolderId === item.id;
 
       return (
@@ -125,7 +119,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div 
                 className={`
                     relative group flex items-center pr-2 py-1 cursor-pointer select-none transition-colors border border-transparent
-                    ${isActive ? 'bg-[#333]' : 'hover:bg-[#2a2a2a]'}
+                    hover:bg-[#2a2a2a]
                     ${isDragTarget ? 'bg-[#3d3d3d] border-[#0078d4]' : ''}
                 `}
                 style={{ paddingLeft }}
@@ -136,7 +130,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onDrop={(e) => handleDrop(e, dropTargetId)}
             >
                 {/* Arrow for folders */}
-                <div className="w-4 h-4 flex items-center justify-center mr-1 text-gray-500">
+                <div className="w-4 h-4 flex items-center justify-center mr-1 text-gray-500 hover:text-white">
                     {isFolder && (
                         item.isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />
                     )}
@@ -145,9 +139,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {/* Icon */}
                 <div className="mr-2 text-gray-400">
                     {isFolder ? (
-                        item.isExpanded ? <FolderOpen size={16} className="text-yellow-500" /> : <Folder size={16} className="text-yellow-500" />
+                        item.isExpanded ? <FolderOpen size={16} className="text-[#e8b339]" /> : <Folder size={16} className="text-[#e8b339]" />
                     ) : (
-                        <FileText size={16} className={isActive ? 'text-[#4cc2ff]' : 'text-gray-500'} />
+                        <FileText size={16} className="text-[#4cc2ff]" />
                     )}
                 </div>
 
@@ -165,7 +159,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             className="w-full bg-[#111] text-white text-sm px-1 py-0.5 border border-[#0078d4] outline-none rounded-sm"
                         />
                     ) : (
-                        <div className={`truncate text-sm ${isActive ? 'text-white' : 'text-gray-300'}`}>
+                        <div className="truncate text-sm text-gray-300 group-hover:text-white">
                             {item.name}
                         </div>
                     )}
@@ -206,14 +200,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
   );
 
   return (
-    <div className="w-64 bg-[#202020] border-r border-[#333] flex flex-col h-full">
-      <div className="p-4 space-y-4">
+    <div className="w-64 bg-[#202020] border-r border-[#2b2b2b] flex flex-col h-full">
+      <div className="p-3 space-y-3">
         {/* Search / Filter */}
-        <div className="relative">
-          <Search className="absolute left-2.5 top-2 text-gray-500" size={14} />
+        <div className="relative group">
+          <Search className="absolute left-2.5 top-2 text-gray-500 group-focus-within:text-[#4cc2ff]" size={14} />
           <input 
             type="text" 
-            placeholder="Search..." 
+            placeholder="Search files..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-[#2d2d2d] text-sm text-white pl-8 pr-3 py-1.5 rounded-md border border-transparent focus:border-[#4cc2ff] focus:bg-[#1f1f1f] outline-none transition-all placeholder-gray-500"
@@ -224,7 +218,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="flex space-x-1">
             <button 
                 onClick={onCreateFile}
-                className="flex-1 flex items-center justify-center space-x-1 bg-[#2d2d2d] hover:bg-[#3d3d3d] text-white text-xs py-2 rounded-md transition-colors border border-[#333]"
+                className="flex-1 flex items-center justify-center space-x-1 bg-[#2d2d2d] hover:bg-[#3d3d3d] text-white text-xs py-1.5 rounded transition-colors border border-[#333]"
                 title="New File"
             >
                 <Plus size={14} />
@@ -232,17 +226,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
             <button 
                 onClick={onCreateFolder}
-                className="flex-1 flex items-center justify-center space-x-1 bg-[#2d2d2d] hover:bg-[#3d3d3d] text-white text-xs py-2 rounded-md transition-colors border border-[#333]"
+                className="flex-1 flex items-center justify-center space-x-1 bg-[#2d2d2d] hover:bg-[#3d3d3d] text-white text-xs py-1.5 rounded transition-colors border border-[#333]"
                 title="New Folder"
             >
                 <FolderPlus size={14} />
                 <span>Folder</span>
             </button>
-            <label className="flex-1 flex items-center justify-center space-x-1 bg-[#0078d4] hover:bg-[#006cc0] text-white text-xs py-2 rounded-md cursor-pointer transition-colors shadow-sm">
+            <button 
+                onClick={onOpenFile}
+                className="flex-1 flex items-center justify-center space-x-1 bg-[#0078d4] hover:bg-[#006cc0] text-white text-xs py-1.5 rounded cursor-pointer transition-colors shadow-sm"
+                title="Open File (System Dialog)"
+            >
                 <FolderOpen size={14} />
                 <span>Open</span>
-                <input type="file" multiple accept=".md,.markdown,.txt" className="hidden" onChange={onFileUpload} />
-            </label>
+            </button>
         </div>
       </div>
 
@@ -251,14 +248,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
         onDragOver={(e) => handleDragOver(e, null)} // Root drop zone
         onDrop={(e) => handleDrop(e, null)}
       >
-        <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider flex justify-between">
-          <span>Explorer</span>
-          {files.some(f => f.path) && <span title="Some files are linked to disk">HDD Linked</span>}
+        <div className="px-3 py-1 text-[10px] font-bold text-gray-500 uppercase tracking-widest flex justify-between">
+          <span>Project</span>
         </div>
         
         {files.length === 0 ? (
           <div className="text-center mt-10 text-gray-500 text-sm italic px-4">
-            No files open.<br/>Drag & drop or click Open.
+            No files.<br/>Drag & drop or click Open.
           </div>
         ) : searchQuery ? (
             // Search Results (Flat View)
@@ -272,7 +268,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             onClick={() => item.type === 'folder' ? onToggleFolder(item.id) : onSelectFile(item.id)}
                             className="flex items-center p-2 hover:bg-[#333] rounded cursor-pointer text-sm text-gray-300"
                         >
-                            {item.type === 'folder' ? <Folder size={14} className="mr-2 text-yellow-500" /> : <FileText size={14} className="mr-2 text-blue-400" />}
+                            {item.type === 'folder' ? <Folder size={14} className="mr-2 text-[#e8b339]" /> : <FileText size={14} className="mr-2 text-[#4cc2ff]" />}
                             {item.name}
                         </div>
                     ))
@@ -280,15 +276,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
         ) : (
             // Tree View
-            <div className="min-h-[100px]">
+            <div className="min-h-[100px] pt-1">
                 {renderTree(null)}
             </div>
         )}
       </div>
 
-      <div className="p-3 border-t border-[#333] bg-[#1d1d1d] text-xs text-gray-500 flex justify-between items-center">
-        <span>{files.filter(f => f.type === 'file').length} files</span>
-        <span>Drag to move</span>
+      {/* Footer / Status Bar */}
+      <div className="p-2 border-t border-[#333] bg-[#1d1d1d] text-xs text-gray-500 flex justify-between items-center">
+        <span className="pl-1">{files.filter(f => f.type === 'file').length} items</span>
+        <button 
+            onClick={onOpenSettings} 
+            className="p-1.5 hover:bg-[#333] rounded text-gray-500 hover:text-white transition-colors"
+            title="Settings"
+        >
+            <Settings size={14} />
+        </button>
       </div>
     </div>
   );
