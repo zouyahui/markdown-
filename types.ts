@@ -1,8 +1,12 @@
 export interface FileDoc {
   id: string;
   name: string;
-  content: string;
+  content: string; // Empty for folders
   lastModified: number;
+  type: 'file' | 'folder';
+  parentId: string | null;
+  path?: string; // Real system path
+  isExpanded?: boolean; // For folders UI state
 }
 
 export enum MessageRole {

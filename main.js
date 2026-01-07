@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const http = require('http');
 const handler = require('serve-handler');
@@ -8,14 +8,11 @@ let mainWindow;
 let server;
 
 // Create a simple local server to serve the app files
-// This is necessary because ES modules (esm.sh) require the http/https protocol,
-// they do not work correctly over the file:// protocol.
 const startServer = () => {
   return new Promise((resolve) => {
     server = http.createServer((request, response) => {
       return handler(request, response, {
         public: __dirname,
-        // Ensure clean URLs work if needed, though we use hash routing or single page
         rewrites: [
           { source: '**', destination: '/index.html' }
         ]
@@ -64,6 +61,13 @@ const createWindow = async () => {
 
   ipcMain.on('app-close', () => {
     mainWindow.close();
+  });
+
+  // Show item in folder
+  ipcMain.on('show-in-folder', (event, fullPath) => {
+    if (fullPath) {
+      shell.showItemInFolder(fullPath);
+    }
   });
 };
 

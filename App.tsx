@@ -6,7 +6,7 @@ import { MarkdownEditor } from './components/MarkdownEditor';
 import { AIAssistant } from './components/AIAssistant';
 import { HelpDialog } from './components/HelpDialog';
 import { FileDoc } from './types';
-import { Sparkles, Layout, PenTool, Eye, Save } from 'lucide-react';
+import { Sparkles, Layout, PenTool, Eye, Save, MapPin } from 'lucide-react';
 
 const App: React.FC = () => {
   const [files, setFiles] = useState<FileDoc[]>([]);
@@ -29,8 +29,17 @@ const App: React.FC = () => {
       try {
         const parsedFiles = JSON.parse(savedFiles);
         if (parsedFiles.length > 0) {
-          setFiles(parsedFiles);
-          setActiveFileId(parsedFiles[0].id);
+          // Migration: Ensure new fields exist for old data
+          const migratedFiles = parsedFiles.map((f: any) => ({
+            ...f,
+            type: f.type || 'file',
+            parentId: f.parentId || null,
+            isExpanded: f.isExpanded !== undefined ? f.isExpanded : false
+          }));
+          setFiles(migratedFiles);
+          // Find first file to activate
+          const firstFile = migratedFiles.find((f: FileDoc) => f.type === 'file');
+          if (firstFile) setActiveFileId(firstFile.id);
           return;
         }
       } catch (e) {
@@ -42,34 +51,26 @@ const App: React.FC = () => {
     const welcomeFile: FileDoc = {
       id: 'welcome',
       name: 'Welcome.md',
+      type: 'file',
+      parentId: null,
       lastModified: Date.now(),
       content: `# Welcome to WinMD Explorer
 
-This is a **Windows 11 inspired** Markdown explorer capable of reading local files.
+This is a **Windows 11 inspired** Markdown explorer.
+
+## New Features 🚀
+- **Folders**: Create folders and organize your files.
+- **Drag & Drop**: Drag files into folders to move them.
+- **Locate File**: Click the target icon to find the file on your disk (if opened from disk).
 
 ## Storage Note 💾
-- **Auto-Save**: Files are now automatically saved to your browser's Local Storage. They will survive a page refresh!
-- **Save to Disk**: Click the **Save** icon in the toolbar to download the .md file to your computer.
-
-## Features
-- 🎨 Modern Dark UI
-- 📝 Markdown & GFM Support
-- ✏️ **Edit Mode** (Click the Pen icon!)
-- ✨ **Gemini AI Integration** (Click the Sparkles icon!)
+- **Auto-Save**: Files are saved to local storage.
+- **HDD Link**: If you open a file from disk, WinMD remembers the path.
 
 ## How to use
-1. Use the "Open" button in the sidebar to select local Markdown files.
-2. Click "New" to create a scratchpad.
-3. Select a file to view it.
-4. Ask Gemini to summarize your documents.
-
-## Running on Windows
-Click the **?** icon in the title bar to learn how to install this as a native app on Windows!
-
-## Code Example
-\`\`\`javascript
-console.log("Hello, WinMD!");
-\`\`\`
+1. Use the "Open" button in the sidebar.
+2. Click "Folder" to create a new folder.
+3. Drag items to organize.
       `
     };
     setFiles([welcomeFile]);
@@ -88,12 +89,15 @@ console.log("Hello, WinMD!");
     if (!fileList) return;
 
     Array.from(fileList).forEach((file: File) => {
-      // Check for existence before reading to prompt user
-      const existingFile = files.find(f => f.name === file.name);
+      // Electron hack: 'path' property exists on File object in Electron
+      // @ts-ignore
+      const realPath = file.path;
+
+      // Check for existence
+      const existingFile = files.find(f => f.path === realPath || (f.name === file.name && !f.path));
       
       if (existingFile) {
-        if (!window.confirm(`The file "${file.name}" is already open. Do you want to overwrite it with the uploaded version?`)) {
-            // If user cancels, just switch to existing file
+        if (!window.confirm(`The file "${file.name}" is already open. Update content?`)) {
             setActiveFileId(existingFile.id);
             return;
         }
@@ -107,7 +111,7 @@ console.log("Hello, WinMD!");
             // Overwrite existing
             setFiles(prev => prev.map(f => 
                 f.id === existingFile.id 
-                ? { ...f, content: text, lastModified: file.lastModified }
+                ? { ...f, content: text, lastModified: file.lastModified, path: realPath }
                 : f
             ));
             setActiveFileId(existingFile.id);
@@ -117,7 +121,10 @@ console.log("Hello, WinMD!");
                 id: Math.random().toString(36).substr(2, 9),
                 name: file.name,
                 content: text,
-                lastModified: file.lastModified
+                type: 'file',
+                parentId: null,
+                lastModified: file.lastModified,
+                path: realPath // Store the real path
             };
             setFiles(prev => [...prev, newFile]);
             setActiveFileId(newFile.id);
@@ -125,15 +132,16 @@ console.log("Hello, WinMD!");
       };
       reader.readAsText(file);
     });
-    // Reset input
     event.target.value = '';
   };
 
   const handleCreateFile = () => {
     const newFile: FileDoc = {
         id: Math.random().toString(36).substr(2, 9),
-        name: `Untitled-${files.length + 1}.md`,
+        name: `Untitled-${files.filter(f => f.type === 'file').length + 1}.md`,
         content: '# New Document\n\nStart typing...',
+        type: 'file',
+        parentId: null, // Create in root by default
         lastModified: Date.now()
     };
     setFiles(prev => [...prev, newFile]);
@@ -141,15 +149,28 @@ console.log("Hello, WinMD!");
     setIsEditing(true); 
   };
 
+  const handleCreateFolder = () => {
+    const newFolder: FileDoc = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: `New Folder`,
+      content: '',
+      type: 'folder',
+      parentId: null,
+      lastModified: Date.now(),
+      isExpanded: true
+    };
+    setFiles(prev => [...prev, newFolder]);
+  };
+
   const handleRenameFile = (id: string, newName: string) => {
       let finalName = newName.trim();
       if (!finalName) return;
       
-      // Ensure extension exists if desired, but user might want no extension. 
-      // Let's force .md if no extension is provided to keep it clean, 
-      // or just trust the user. Let's auto-append .md if missing for better UX in this app.
-      if (!finalName.toLowerCase().endsWith('.md') && !finalName.toLowerCase().endsWith('.txt')) {
-          finalName += '.md';
+      const file = files.find(f => f.id === id);
+      if (file?.type === 'file') {
+        if (!finalName.toLowerCase().endsWith('.md') && !finalName.toLowerCase().endsWith('.txt')) {
+            finalName += '.md';
+        }
       }
 
       setFiles(prev => prev.map(f => f.id === id ? { ...f, name: finalName } : f));
@@ -164,6 +185,7 @@ console.log("Hello, WinMD!");
 
   const handleSaveToDisk = () => {
     if (!activeFile) return;
+    // Standard web save
     const blob = new Blob([activeFile.content], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -173,6 +195,52 @@ console.log("Hello, WinMD!");
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const handleMoveFile = (fileId: string, targetFolderId: string | null) => {
+    if (fileId === targetFolderId) return;
+
+    // Cycle detection: Prevent moving a folder into itself or its children
+    let currentId = targetFolderId;
+    while (currentId) {
+        if (currentId === fileId) return; // Cycle detected
+        const parent = files.find(f => f.id === currentId)?.parentId;
+        currentId = parent || null;
+    }
+
+    setFiles(prev => prev.map(f => {
+        if (f.id === fileId) {
+            return { ...f, parentId: targetFolderId };
+        }
+        // Auto-expand target folder
+        if (targetFolderId && f.id === targetFolderId) {
+            return { ...f, isExpanded: true };
+        }
+        return f;
+    }));
+  };
+
+  const handleToggleFolder = (folderId: string) => {
+    setFiles(prev => prev.map(f => 
+        f.id === folderId ? { ...f, isExpanded: !f.isExpanded } : f
+    ));
+  };
+
+  const handleLocateFile = (file: FileDoc) => {
+    if (file.path) {
+        try {
+            // @ts-ignore
+            if (window.require) {
+                // @ts-ignore
+                const { ipcRenderer } = window.require('electron');
+                ipcRenderer.send('show-in-folder', file.path);
+            }
+        } catch (e) {
+            alert(`File path is: ${file.path}`);
+        }
+    } else {
+        alert("This file is stored in browser memory and not linked to a physical file yet.");
+    }
   };
 
   return (
@@ -189,7 +257,11 @@ console.log("Hello, WinMD!");
           onSelectFile={setActiveFileId}
           onFileUpload={handleFileUpload}
           onCreateFile={handleCreateFile}
+          onCreateFolder={handleCreateFolder}
           onRenameFile={handleRenameFile}
+          onMoveFile={handleMoveFile}
+          onToggleFolder={handleToggleFolder}
+          onLocateFile={handleLocateFile}
         />
         
         <main className="flex-1 flex flex-col relative min-w-0 bg-[#272727]">
@@ -216,6 +288,20 @@ console.log("Hello, WinMD!");
                       <Save size={14} />
                       <span>Save</span>
                     </button>
+
+                    {activeFile.path && (
+                        <>
+                            <div className="h-3 w-[1px] bg-[#333]"></div>
+                            <button
+                                onClick={() => handleLocateFile(activeFile)}
+                                className="flex items-center space-x-1.5 px-2 py-1 rounded-md transition-colors hover:bg-[#333] text-gray-400 hover:text-white"
+                                title={activeFile.path}
+                            >
+                                <MapPin size={14} />
+                                <span>Locate</span>
+                            </button>
+                        </>
+                    )}
 
                     <div className="h-3 w-[1px] bg-[#333]"></div>
                     <span className="hidden sm:inline-block">{new Date(activeFile.lastModified).toLocaleDateString()}</span>
