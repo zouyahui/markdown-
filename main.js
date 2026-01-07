@@ -1,35 +1,11 @@
 const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const path = require('path');
-const http = require('http');
 const fs = require('fs');
-const handler = require('serve-handler');
 
 // Global reference to prevent garbage collection
 let mainWindow;
-let server;
-
-// Create a simple local server to serve the app files
-const startServer = () => {
-  return new Promise((resolve) => {
-    server = http.createServer((request, response) => {
-      return handler(request, response, {
-        public: __dirname,
-        rewrites: [
-          { source: '**', destination: '/index.html' }
-        ]
-      });
-    });
-    
-    // Listen on a random available port
-    server.listen(0, () => {
-      resolve(server.address().port);
-    });
-  });
-};
 
 const createWindow = async () => {
-  const port = await startServer();
-
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -39,13 +15,23 @@ const createWindow = async () => {
     webPreferences: {
       nodeIntegration: true, // Allow using Node.js features in the renderer
       contextIsolation: false, // Required for simple IPC communication in this setup
-      webSecurity: false // Allow loading resources from remote CDNs (esm.sh)
+      webSecurity: false // Allow loading resources
     },
-    icon: path.join(__dirname, 'icon.png') // Optional: add an icon.png to root if you have one
+    icon: path.join(__dirname, 'icon.png')
   });
 
-  // Load the app via the local server
-  mainWindow.loadURL(`http://localhost:${port}`);
+  // Load the app via Vite dev server
+  // Note: 'npm start' runs vite concurrently on port 5173
+  // In production, you would load the dist/index.html file
+  const isDev = !app.isPackaged;
+  
+  if (isDev) {
+    // Wait for Vite to start? Usually concurrently handles it well enough
+    mainWindow.loadURL('http://localhost:5173');
+    // mainWindow.webContents.openDevTools(); // Optional: Open DevTools
+  } else {
+    mainWindow.loadFile(path.join(__dirname, 'dist/index.html'));
+  }
 
   // IPC Event Handlers for Custom Title Bar
   ipcMain.on('app-minimize', () => {
@@ -135,8 +121,5 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
-  }
-  if (server) {
-    server.close();
   }
 });

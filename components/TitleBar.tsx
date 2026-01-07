@@ -11,24 +11,32 @@ interface TitleBarProps {
 export const TitleBar: React.FC<TitleBarProps> = ({ onHelp, language = 'en' }) => {
   const t = translations[language].titleBar;
   
-  // Helper to send commands to Electron main process
+  // Robust Helper to send commands to Electron main process
   const sendIpc = (channel: string) => {
     try {
       // @ts-ignore
-      if (window.require) {
+      if (typeof window !== 'undefined' && window.require) {
         // @ts-ignore
         const { ipcRenderer } = window.require('electron');
         ipcRenderer.send(channel);
+      } else {
+        console.warn("Electron IPC not found. Actions are disabled in browser mode.");
       }
     } catch (e) {
-      console.warn('Electron IPC not available');
+      console.warn('Electron IPC error:', e);
     }
   };
 
   return (
     <div className="h-8 bg-[#181818] flex items-center justify-between select-none draggable" style={{ WebkitAppRegion: 'drag' } as any}>
       <div className="flex items-center px-4 space-x-3 text-xs text-gray-400">
-        <div className="flex items-center space-x-2">
+        {/* Icon & Title - Added double click to close (Window operation) */}
+        <div 
+            className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
+            style={{ WebkitAppRegion: 'no-drag', cursor: 'default' } as any}
+            onDoubleClick={() => sendIpc('app-close')}
+            title="Double-click to close"
+        >
             <div className="bg-[#4cc2ff] text-black p-0.5 rounded-sm">
                  <AppWindow size={12} strokeWidth={3} />
             </div>
@@ -51,6 +59,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onHelp, language = 'en' }) =
         <button 
           onClick={() => sendIpc('app-minimize')}
           className="h-full w-12 flex items-center justify-center hover:bg-[#333] text-gray-400 transition-colors"
+          title="Minimize"
         >
           <Minus size={14} />
         </button>
@@ -58,6 +67,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onHelp, language = 'en' }) =
         <button 
           onClick={() => sendIpc('app-maximize')}
           className="h-full w-12 flex items-center justify-center hover:bg-[#333] text-gray-400 transition-colors"
+          title="Maximize"
         >
           <Square size={12} />
         </button>
@@ -65,6 +75,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onHelp, language = 'en' }) =
         <button 
           onClick={() => sendIpc('app-close')}
           className="h-full w-12 flex items-center justify-center hover:bg-[#e81123] hover:text-white text-gray-400 transition-colors"
+          title="Close"
         >
           <X size={14} />
         </button>

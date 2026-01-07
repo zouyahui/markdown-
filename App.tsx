@@ -508,12 +508,12 @@ graph TD
   return (
     <div className="flex flex-col h-screen w-screen bg-black text-white overflow-hidden border border-[#333] shadow-2xl rounded-none sm:rounded-lg sm:my-4 sm:mx-4 sm:h-[calc(100vh-2rem)] sm:w-[calc(100vw-2rem)]">
       
-      {/* Fallback File Input */}
+      {/* Fallback File Input - Hidden with style to ensure it is invisible even if CSS fails */}
       <input 
           type="file" 
           multiple 
           accept=".md,.txt,.markdown" 
-          className="hidden" 
+          style={{ display: 'none' }}
           ref={fileInputRef}
           onChange={handleBrowserFileSelect}
       />

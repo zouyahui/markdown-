@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Monitor, Download, HardDrive } from 'lucide-react';
+import { X, Cpu, HardDrive, Layout, FileCode } from 'lucide-react';
 import { Language } from '../types';
 import { translations } from '../translations';
 
@@ -17,7 +17,7 @@ export const HelpDialog: React.FC<HelpDialogProps> = ({ isOpen, onClose, languag
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="w-[400px] bg-[#202020] border border-[#333] rounded-lg shadow-2xl p-0 overflow-hidden animate-in fade-in zoom-in duration-200">
+      <div className="w-[450px] bg-[#202020] border border-[#333] rounded-lg shadow-2xl p-0 overflow-hidden animate-in fade-in zoom-in duration-200">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-[#333] bg-[#252525]">
           <h3 className="font-semibold text-sm">{t.title}</h3>
@@ -27,33 +27,46 @@ export const HelpDialog: React.FC<HelpDialogProps> = ({ isOpen, onClose, languag
         </div>
         
         {/* Content */}
-        <div className="p-6 space-y-4">
-          <div className="flex items-start space-x-3">
-            <div className="p-2 bg-[#333] rounded-md text-[#4cc2ff]">
-              <HardDrive size={24} />
-            </div>
-            <div>
-              <h4 className="font-medium text-sm mb-1">{t.whereSavedTitle}</h4>
-              <p className="text-xs text-gray-400 leading-relaxed">
-                {t.whereSavedDesc}
-              </p>
-            </div>
+        <div className="p-6">
+          {/* Logo & Version */}
+          <div className="text-center mb-6">
+             <div className="text-4xl mb-2">🚀</div>
+             <h2 className="text-xl font-bold text-white">{t.appName}</h2>
+             <p className="text-xs text-gray-500 mt-1">{t.version}</p>
+             <p className="text-sm text-gray-400 mt-3 px-4 leading-relaxed">
+               {t.description}
+             </p>
           </div>
 
-          <div className="flex items-start space-x-3">
-            <div className="p-2 bg-[#333] rounded-md text-[#4cc2ff]">
-              <Download size={24} />
-            </div>
+          {/* Features Grid */}
+          <div className="bg-[#1a1a1a] rounded-lg p-4 border border-[#333] mb-5">
+             <h4 className="text-xs font-semibold text-gray-300 uppercase tracking-wider mb-3">{t.features}</h4>
+             <ul className="space-y-2">
+                <li className="flex items-center space-x-2 text-xs text-gray-400">
+                    <Cpu size={14} className="text-[#4cc2ff]" />
+                    <span>{t.feature1}</span>
+                </li>
+                <li className="flex items-center space-x-2 text-xs text-gray-400">
+                    <Layout size={14} className="text-[#e8b339]" />
+                    <span>{t.feature2}</span>
+                </li>
+                <li className="flex items-center space-x-2 text-xs text-gray-400">
+                    <HardDrive size={14} className="text-green-500" />
+                    <span>{t.feature3}</span>
+                </li>
+                <li className="flex items-center space-x-2 text-xs text-gray-400">
+                    <FileCode size={14} className="text-purple-500" />
+                    <span>{t.feature4}</span>
+                </li>
+             </ul>
+          </div>
+
+          {/* Storage Note */}
+          <div className="flex items-start space-x-2 text-xs text-gray-500">
+            <HardDrive size={14} className="mt-0.5 flex-shrink-0" />
             <div>
-              <h4 className="font-medium text-sm mb-1">{t.installTitle}</h4>
-              <p className="text-xs text-gray-400 leading-relaxed mb-2">
-                {t.installDesc}
-              </p>
-              <ol className="text-xs text-gray-400 list-decimal pl-4 space-y-1">
-                <li>{t.installStep1}</li>
-                <li>{t.installStep2}</li>
-                <li>{t.installStep3}</li>
-              </ol>
+               <span className="font-semibold text-gray-400 mr-1">{t.storage}:</span>
+               {t.storageDesc}
             </div>
           </div>
         </div>

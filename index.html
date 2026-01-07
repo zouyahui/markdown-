@@ -7,8 +7,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@300;400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
-    <link rel="manifest" href="/manifest.json">
-    <link rel="apple-touch-icon" href="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/1f4c1.png">
+    <!-- Monaco Editor CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/monaco-editor@0.55.1/min/vs/editor/editor.main.css">
     <meta name="theme-color" content="#202020">
     <style>
       body {
@@ -140,30 +140,47 @@
         margin-bottom: 1em;
         overflow-x: auto;
       }
+
+      /* Fix for Mermaid temporary rendering artifacts */
+      body > [id^="dmermaid"] {
+        display: none !important;
+        position: absolute;
+        top: -9999px;
+        left: -9999px;
+      }
+      
+      /* Hide potential unstyled inputs that might flash */
+      input[type="file"].hidden {
+        display: none !important;
+      }
     </style>
-  <script type="importmap">
+<script type="importmap">
 {
   "imports": {
-    "react/": "https://esm.sh/react@^19.2.3/",
     "react": "https://esm.sh/react@^19.2.3",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
     "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
     "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
     "react-markdown": "https://esm.sh/react-markdown@^10.1.0",
     "remark-gfm": "https://esm.sh/remark-gfm@^4.0.1",
     "remark-breaks": "https://esm.sh/remark-breaks@^4.0.0",
     "remark-math": "https://esm.sh/remark-math@^6.0.0",
-    "rehype-katex": "https://esm.sh/rehype-katex@^7.0.0",
-    "react-syntax-highlighter": "https://esm.sh/react-syntax-highlighter@15.5.0?external=react",
-    "react-syntax-highlighter/dist/esm/styles/prism": "https://esm.sh/react-syntax-highlighter@15.5.0/dist/esm/styles/prism?external=react",
-    "@monaco-editor/react": "https://esm.sh/@monaco-editor/react@^4.6.0",
-    "mermaid": "https://esm.sh/mermaid@10.9.0",
-    "react-syntax-highlighter/": "https://esm.sh/react-syntax-highlighter@^16.1.0/"
+    "rehype-katex": "https://esm.sh/rehype-katex@^7.0.1",
+    "react-syntax-highlighter": "https://esm.sh/react-syntax-highlighter@^16.1.0",
+    "react-syntax-highlighter/": "https://esm.sh/react-syntax-highlighter@^16.1.0/",
+    "mermaid": "https://esm.sh/mermaid@^11.12.2",
+    "@monaco-editor/react": "https://esm.sh/@monaco-editor/react@^4.7.0",
+    "monaco-editor": "https://esm.sh/monaco-editor@^0.55.1",
+    "vite": "https://esm.sh/vite@^7.3.1",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "monaco-editor/": "https://esm.sh/monaco-editor@^0.55.1/"
   }
 }
 </script>
 </head>
   <body>
     <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
   </body>
 </html>

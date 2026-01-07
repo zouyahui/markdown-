@@ -5,20 +5,40 @@
   "description": "A Windows 11-styled Markdown file explorer",
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
-    "package": "electron-forge package",
-    "make": "electron-forge make"
+    "start": "concurrently -k \"vite\" \"wait-on tcp:5173 && electron .\"",
+    "package": "vite build && electron-forge package",
+    "make": "vite build && electron-forge make"
   },
   "keywords": [],
   "author": "WinMD",
   "license": "MIT",
   "dependencies": {
+    "@google/genai": "^1.34.0",
+    "@monaco-editor/react": "^4.6.0",
+    "lucide-react": "^0.468.0",
+    "mermaid": "^10.9.1",
+    "monaco-editor": "^0.50.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^9.0.1",
+    "react-syntax-highlighter": "^15.5.0",
+    "rehype-katex": "^7.0.0",
+    "remark-breaks": "^4.0.0",
+    "remark-gfm": "^4.0.0",
+    "remark-math": "^6.0.0",
     "serve-handler": "^6.1.6"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.6.0",
     "@electron-forge/maker-squirrel": "^7.6.0",
     "@electron-forge/maker-zip": "^7.6.0",
-    "electron": "^33.2.1"
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "concurrently": "^8.2.2",
+    "electron": "^33.2.1",
+    "typescript": "^5.5.3",
+    "vite": "^5.3.1",
+    "wait-on": "^7.2.0"
   }
 }

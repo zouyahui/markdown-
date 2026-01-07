@@ -1,5 +1,9 @@
 import React, { useRef, useEffect } from 'react';
-import Editor, { OnMount, useMonaco } from '@monaco-editor/react';
+import Editor, { OnMount, useMonaco, loader } from '@monaco-editor/react';
+import * as monaco from 'monaco-editor';
+
+// Configure Monaco to use local source instead of CDN
+loader.config({ monaco });
 
 interface MarkdownEditorProps {
   content: string;
@@ -9,13 +13,12 @@ interface MarkdownEditorProps {
 }
 
 export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ content, onChange, onScroll, editorRefProp }) => {
-  const monaco = useMonaco();
+  const monacoInstance = useMonaco();
   
-  // Configure loader to use a fast CDN for the worker files
   useEffect(() => {
-    if (monaco) {
+    if (monacoInstance) {
       // Custom theme or settings can go here
-      monaco.editor.defineTheme('winmd-dark', {
+      monacoInstance.editor.defineTheme('winmd-dark', {
         base: 'vs-dark',
         inherit: true,
         rules: [],
@@ -23,10 +26,12 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ content, onChang
           'editor.background': '#1e1e1e',
         }
       });
+      // 确保主题被应用
+      monacoInstance.editor.setTheme('winmd-dark');
     }
-  }, [monaco]);
+  }, [monacoInstance]);
 
-  const handleEditorDidMount: OnMount = (editor, monacoInstance) => {
+  const handleEditorDidMount: OnMount = (editor, monacoObj) => {
     if (editorRefProp) {
       editorRefProp.current = editor;
     }
@@ -48,18 +53,17 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ content, onChang
     // --- Keybindings ---
     
     // Bold: Ctrl+B / Cmd+B
-    editor.addCommand(monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.KeyB, () => {
+    editor.addCommand(monacoObj.KeyMod.CtrlCmd | monacoObj.KeyCode.KeyB, () => {
         const selection = editor.getSelection();
         if (selection) {
             const text = editor.getModel()?.getValueInRange(selection) || "";
             const newText = `**${text}**`;
             editor.executeEdits('bold', [{ range: selection, text: newText }]);
-            // Optional: Adjust cursor if text was empty
         }
     });
 
     // Italic: Ctrl+I / Cmd+I
-    editor.addCommand(monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.KeyI, () => {
+    editor.addCommand(monacoObj.KeyMod.CtrlCmd | monacoObj.KeyCode.KeyI, () => {
         const selection = editor.getSelection();
         if (selection) {
             const text = editor.getModel()?.getValueInRange(selection) || "";
@@ -69,23 +73,26 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ content, onChang
     });
 
     // Save: Ctrl+S (Bubble up event manually since Monaco captures it)
-    editor.addCommand(monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.KeyS, () => {
-        // Dispatch a custom event or let the browser handle it if not prevented.
-        // But getting Monaco to *not* prevent default on Ctrl+S is hard.
-        // We trigger a custom DOM event that App.tsx can listen to on the window
+    editor.addCommand(monacoObj.KeyMod.CtrlCmd | monacoObj.KeyCode.KeyS, () => {
         window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', ctrlKey: true, metaKey: true, bubbles: true }));
     });
   };
 
   return (
-    <div className="h-full w-full bg-[#1e1e1e] flex flex-col overflow-hidden">
+    <div className="h-full w-full bg-[#1e1e1e] flex flex-col overflow-hidden text-left">
       <Editor
         height="100%"
         defaultLanguage="markdown"
         value={content}
-        theme="vs-dark" // Use built-in dark theme which is very reliable
+        theme="vs-dark" // Use built-in dark theme initially, useEffect will upgrade it
         onChange={(value) => onChange(value || '')}
         onMount={handleEditorDidMount}
+        loading={
+            <div className="flex flex-col items-center justify-center h-full text-gray-500 space-y-2">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0078d4]"></div>
+                <div className="text-xs">Loading Editor...</div>
+            </div>
+        }
         options={{
           minimap: { enabled: false }, // Cleaner look for writing
           wordWrap: 'on',
@@ -97,6 +104,9 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ content, onChang
           padding: { top: 20, bottom: 20 },
           renderLineHighlight: 'none',
           contextmenu: true,
+          fixedOverflowWidgets: true,
+          overviewRulerBorder: false,
+          hideCursorInOverviewRuler: true,
           scrollbar: {
             vertical: 'visible',
             horizontal: 'hidden',
