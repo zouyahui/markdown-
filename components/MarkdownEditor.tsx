@@ -76,6 +76,47 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ content, onChang
     editor.addCommand(monacoObj.KeyMod.CtrlCmd | monacoObj.KeyCode.KeyS, () => {
         window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', ctrlKey: true, metaKey: true, bubbles: true }));
     });
+
+    // Fix: Explicitly handle Paste (Ctrl+V) for Electron environment
+    editor.addCommand(monacoObj.KeyMod.CtrlCmd | monacoObj.KeyCode.KeyV, () => {
+        editor.focus();
+        
+        const insertText = (text: string) => {
+            if (!text) return;
+            const selection = editor.getSelection();
+            if (selection) {
+                editor.executeEdits('paste', [{ 
+                    range: selection, 
+                    text: text, 
+                    forceMoveMarkers: true 
+                }]);
+            }
+        };
+
+        // Attempt 1: Electron Native Clipboard (Synchronous, Reliable)
+        try {
+            // @ts-ignore
+            if (typeof window !== 'undefined' && window.require) {
+                // @ts-ignore
+                const { clipboard } = window.require('electron');
+                const text = clipboard.readText();
+                insertText(text);
+                return;
+            }
+        } catch (e) {
+            // Check if we are in a true browser environment vs broken Electron
+            console.debug('Electron clipboard access failed:', e);
+        }
+
+        // Attempt 2: Navigator Clipboard API (Async, Permission-gated)
+        if (navigator.clipboard && navigator.clipboard.readText) {
+            navigator.clipboard.readText()
+                .then(insertText)
+                .catch(err => {
+                    console.warn('Browser clipboard access denied. Falling back to native behavior or user must use Menu > Paste.', err);
+                });
+        }
+    });
   };
 
   return (

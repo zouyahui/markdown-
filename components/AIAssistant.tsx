@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, Send, X, Bot, User, Loader2, FileText, ChevronDown } from 'lucide-react';
+import { Sparkles, Send, X, Bot, User, Loader2, FileText, ChevronDown, Copy, Check } from 'lucide-react';
 import { ChatMessage, MessageRole, AVAILABLE_MODELS, Language } from '../types';
 import { chatWithDocument, summarizeMarkdown } from '../services/geminiService';
 import { translations } from '../translations';
@@ -29,6 +29,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedModel, setSelectedModel] = useState(AVAILABLE_MODELS[0].id);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   
   const t = translations[language].ai;
@@ -54,7 +55,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
             text: t.greeting.replace('{fileName}', fileName)
         }]);
     }
-  }, [isOpen, fileName, language]); // added language to update init message if cleared and reopened in new lang
+  }, [isOpen, fileName, language]);
 
   const handleSendMessage = async () => {
     if (!input.trim() || isLoading) return;
@@ -104,6 +105,16 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
     setIsLoading(false);
   };
 
+  const handleCopy = async (text: string, id: string) => {
+    try {
+        await navigator.clipboard.writeText(text);
+        setCopiedId(id);
+        setTimeout(() => setCopiedId(null), 2000);
+    } catch (err) {
+        console.error('Failed to copy text', err);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -137,16 +148,31 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((msg) => (
-          <div key={msg.id} className={`flex items-start space-x-2 ${msg.role === MessageRole.User ? 'flex-row-reverse space-x-reverse' : ''}`}>
+          <div key={msg.id} className={`flex items-start space-x-2 group ${msg.role === MessageRole.User ? 'flex-row-reverse space-x-reverse' : ''}`}>
+            {/* Avatar */}
             <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${msg.role === MessageRole.User ? 'bg-[#333]' : 'bg-[#0078d4]'}`}>
               {msg.role === MessageRole.User ? <User size={14} className="text-gray-300" /> : <Bot size={14} className="text-white" />}
             </div>
-            <div className={`max-w-[80%] rounded-lg p-3 text-sm leading-relaxed whitespace-pre-wrap ${
+            
+            {/* Message Bubble */}
+            <div className={`relative max-w-[80%] rounded-lg p-3 text-sm leading-relaxed whitespace-pre-wrap ${
               msg.role === MessageRole.User 
                 ? 'bg-[#333] text-white' 
                 : 'bg-[#2b2b2b] text-gray-200 border border-[#333]'
             }`}>
-              {msg.text}
+              <div className="pr-2">{msg.text}</div>
+              
+              {/* Copy Button (Visible on Hover) */}
+              <button 
+                onClick={() => handleCopy(msg.text, msg.id)}
+                className={`
+                    absolute top-1 right-1 p-1 rounded-md transition-all duration-200 opacity-0 group-hover:opacity-100 bg-[#252525] shadow-sm
+                    ${msg.role === MessageRole.User ? 'text-gray-400 hover:text-white hover:bg-[#444]' : 'text-gray-500 hover:text-white hover:bg-[#383838]'}
+                `}
+                title="Copy text"
+              >
+                {copiedId === msg.id ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+              </button>
             </div>
           </div>
         ))}

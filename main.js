@@ -1,9 +1,84 @@
-const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog, Menu, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
 // Global reference to prevent garbage collection
 let mainWindow;
+
+// --- Create Application Menu to enable Shortcuts (Ctrl+C, Ctrl+V, etc.) ---
+// This must be set for shortcuts to work, especially in frameless windows on Windows/Linux
+const createMenu = () => {
+  const isMac = process.platform === 'darwin';
+
+  const template = [
+    // { role: 'appMenu' }
+    ...(isMac ? [{
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' }
+      ]
+    }] : []),
+    // { role: 'fileMenu' }
+    {
+      label: 'File',
+      submenu: [
+        { role: 'quit' }
+      ]
+    },
+    // { role: 'editMenu' }
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo', accelerator: 'CmdOrCtrl+Z' },
+        { role: 'redo', accelerator: 'CmdOrCtrl+Y' },
+        { type: 'separator' },
+        { role: 'cut', accelerator: 'CmdOrCtrl+X' },
+        { role: 'copy', accelerator: 'CmdOrCtrl+C' },
+        { role: 'paste', accelerator: 'CmdOrCtrl+V' },
+        { role: 'delete' },
+        { type: 'separator' },
+        { role: 'selectAll', accelerator: 'CmdOrCtrl+A' }
+      ]
+    },
+    // { role: 'viewMenu' }
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload', accelerator: 'CmdOrCtrl+R' },
+        { role: 'forceReload', accelerator: 'CmdOrCtrl+Shift+R' },
+        { role: 'toggleDevTools', accelerator: 'F12' },
+        { type: 'separator' },
+        { role: 'resetZoom', accelerator: 'CmdOrCtrl+0' },
+        { role: 'zoomIn', accelerator: 'CmdOrCtrl+Plus' },
+        { role: 'zoomOut', accelerator: 'CmdOrCtrl+-' },
+        { type: 'separator' },
+        { role: 'togglefullscreen', accelerator: 'F11' }
+      ]
+    },
+    {
+      role: 'help',
+      submenu: [
+        {
+          label: 'Learn More',
+          click: async () => {
+            await shell.openExternal('https://electronjs.org');
+          }
+        }
+      ]
+    }
+  ];
+
+  const menu = Menu.buildFromTemplate(template);
+  Menu.setApplicationMenu(menu);
+};
 
 const createWindow = async () => {
   mainWindow = new BrowserWindow({
@@ -11,7 +86,7 @@ const createWindow = async () => {
     height: 800,
     frame: false, // Frameless for custom titlebar
     titleBarStyle: 'hidden',
-    backgroundColor: '#000000',
+    backgroundColor: '#1e1e1e', // Match theme
     webPreferences: {
       nodeIntegration: true, // Allow using Node.js features in the renderer
       contextIsolation: false, // Required for simple IPC communication in this setup
@@ -21,17 +96,23 @@ const createWindow = async () => {
   });
 
   // Load the app via Vite dev server
-  // Note: 'npm start' runs vite concurrently on port 5173
-  // In production, you would load the dist/index.html file
   const isDev = !app.isPackaged;
   
   if (isDev) {
-    // Wait for Vite to start? Usually concurrently handles it well enough
     mainWindow.loadURL('http://localhost:5173');
-    // mainWindow.webContents.openDevTools(); // Optional: Open DevTools
   } else {
     mainWindow.loadFile(path.join(__dirname, 'dist/index.html'));
   }
+
+  // Handle Permission Requests (Fix for Clipboard API errors)
+  mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+    const allowedPermissions = ['clipboard-read', 'clipboard-write', 'media'];
+    if (allowedPermissions.includes(permission)) {
+      callback(true);
+    } else {
+      callback(false);
+    }
+  });
 
   // IPC Event Handlers for Custom Title Bar
   ipcMain.on('app-minimize', () => {
@@ -109,6 +190,7 @@ const createWindow = async () => {
 };
 
 app.whenReady().then(() => {
+  createMenu(); // Set menu immediately
   createWindow();
 
   app.on('activate', () => {
