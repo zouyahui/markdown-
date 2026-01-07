@@ -6,15 +6,17 @@ interface TabBarProps {
   files: FileDoc[];
   openFileIds: string[];
   activeFileId: string | null;
-  onSelectFile: (id: string) => void;
+  selectedFileIds: string[];
+  onSelect: (id: string, modifiers: { ctrl: boolean, shift: boolean }) => void;
   onCloseFile: (id: string) => void;
 }
 
 export const TabBar: React.FC<TabBarProps> = ({ 
   files, 
   openFileIds, 
-  activeFileId, 
-  onSelectFile, 
+  activeFileId,
+  selectedFileIds,
+  onSelect, 
   onCloseFile 
 }) => {
   // Map ids to file objects
@@ -28,15 +30,19 @@ export const TabBar: React.FC<TabBarProps> = ({
     <div className="flex bg-[#181818] border-b border-[#2b2b2b] pt-2 px-2 space-x-1 overflow-x-auto no-scrollbar select-none" style={{ WebkitAppRegion: 'no-drag' } as any}>
       {openFiles.map(file => {
         const isActive = file.id === activeFileId;
+        const isSelected = selectedFileIds.includes(file.id);
+        
         return (
           <div
             key={file.id}
-            onClick={() => onSelectFile(file.id)}
+            onClick={(e) => onSelect(file.id, { ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey })}
             className={`
               group flex items-center min-w-[120px] max-w-[200px] h-9 px-3 text-xs border-t-2 rounded-t-md cursor-pointer transition-colors relative
               ${isActive 
-                ? 'bg-[#272727] text-white border-[#4cc2ff]' 
-                : 'bg-[#202020] text-gray-400 border-transparent hover:bg-[#252525] hover:text-gray-200'
+                ? 'bg-[#272727] text-white border-[#4cc2ff] z-10' 
+                : isSelected
+                  ? 'bg-[#323232] text-gray-200 border-transparent z-0'
+                  : 'bg-[#202020] text-gray-400 border-transparent hover:bg-[#252525] hover:text-gray-200 z-0'
               }
             `}
           >
@@ -49,14 +55,14 @@ export const TabBar: React.FC<TabBarProps> = ({
               }}
               className={`
                 p-0.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity
-                ${isActive ? 'hover:bg-[#333] text-gray-300' : 'hover:bg-[#333] text-gray-400'}
+                ${isActive ? 'hover:bg-[#333] text-gray-300' : 'hover:bg-[#444] text-gray-400'}
               `}
             >
               <X size={12} />
             </button>
             
-            {/* Divider for inactive tabs */}
-            {!isActive && (
+            {/* Divider for inactive/unselected tabs */}
+            {!isActive && !isSelected && (
               <div className="absolute right-0 top-2 bottom-2 w-[1px] bg-[#333] opacity-50 group-hover:opacity-0" />
             )}
           </div>

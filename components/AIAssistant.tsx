@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, Send, X, Bot, User, Loader2, FileText, ChevronDown, Copy, Check } from 'lucide-react';
-import { ChatMessage, MessageRole, AVAILABLE_MODELS, Language } from '../types';
+import { Sparkles, Send, X, Bot, User, Loader2, FileText, ChevronDown, Copy, Check, Paperclip, Trash2 } from 'lucide-react';
+import { ChatMessage, MessageRole, AVAILABLE_MODELS, Language, FileDoc } from '../types';
 import { chatWithDocument, summarizeMarkdown } from '../services/geminiService';
 import { translations } from '../translations';
 
@@ -13,6 +13,7 @@ interface AIAssistantProps {
   onUpdateChatHistory: (history: ChatMessage[]) => void;
   apiKey: string;
   language: Language;
+  allFiles: FileDoc[];
 }
 
 export const AIAssistant: React.FC<AIAssistantProps> = ({ 
@@ -23,13 +24,17 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
     chatHistory, 
     onUpdateChatHistory,
     apiKey,
-    language
+    language,
+    allFiles
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>(chatHistory);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedModel, setSelectedModel] = useState(AVAILABLE_MODELS[0].id);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [attachedContext, setAttachedContext] = useState<{name: string, content: string}[]>([]);
+  const [isDragOver, setIsDragOver] = useState(false);
+  
   const scrollRef = useRef<HTMLDivElement>(null);
   
   const t = translations[language].ai;
@@ -39,7 +44,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, isOpen]);
+  }, [messages, isOpen, attachedContext]);
 
   // Sync state changes to parent (save to FileDoc)
   useEffect(() => {
@@ -58,19 +63,31 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
   }, [isOpen, fileName, language]);
 
   const handleSendMessage = async () => {
-    if (!input.trim() || isLoading) return;
+    if ((!input.trim() && attachedContext.length === 0) || isLoading) return;
+
+    let userText = input;
+    // If context is attached, append it to the hidden prompt, but maybe not show it in the bubble to keep it clean.
+    // However, the `chatWithDocument` function currently takes `newMessage` as string.
+    // We will append the context contextually.
+
+    let fullPrompt = input;
+    if (attachedContext.length > 0) {
+        const contextStr = attachedContext.map(c => `File: ${c.name}\nContent:\n${c.content}`).join('\n\n');
+        fullPrompt = `[Additional Context Provided by User]:\n${contextStr}\n\n[User Message]:\n${input}`;
+    }
 
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
       role: MessageRole.User,
-      text: input
+      text: input + (attachedContext.length > 0 ? `\n(Attached: ${attachedContext.map(f => f.name).join(', ')})` : '')
     };
 
     setMessages(prev => [...prev, userMsg]);
     setInput('');
+    setAttachedContext([]); // Clear context after sending
     setIsLoading(true);
 
-    const responseText = await chatWithDocument(markdownContent, messages, userMsg.text, selectedModel, apiKey, language);
+    const responseText = await chatWithDocument(markdownContent, messages, fullPrompt, selectedModel, apiKey, language);
 
     const botMsg: ChatMessage = {
       id: (Date.now() + 1).toString(),
@@ -115,6 +132,64 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
     }
   };
 
+  // --- Drag and Drop Logic ---
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+
+    const data = e.dataTransfer.getData('text/plain');
+    if (data) {
+        try {
+            // Attempt to parse internal file IDs from Sidebar
+            const parsed = JSON.parse(data);
+            const ids = Array.isArray(parsed) ? parsed : [data];
+            
+            const newContext: {name: string, content: string}[] = [];
+            
+            // Helper to recursively get files
+            const resolveFiles = (fileId: string) => {
+                const file = allFiles.find(f => f.id === fileId);
+                if (!file) return;
+
+                if (file.type === 'file') {
+                    newContext.push({ name: file.name, content: file.content });
+                } else {
+                    // It's a folder, find children
+                    const children = allFiles.filter(f => f.parentId === fileId);
+                    children.forEach(child => resolveFiles(child.id));
+                }
+            };
+
+            ids.forEach(id => resolveFiles(id));
+            
+            // Append to existing context, deduplicating by name (simple check)
+            setAttachedContext(prev => {
+                const combined = [...prev, ...newContext];
+                // Simple dedupe by name
+                return combined.filter((v, i, a) => a.findIndex(t => t.name === v.name) === i);
+            });
+
+        } catch (e) {
+            console.warn("Failed to parse drop data", e);
+        }
+    }
+  };
+
+  const removeContext = (index: number) => {
+    setAttachedContext(prev => prev.filter((_, i) => i !== index));
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -146,7 +221,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 relative">
         {messages.map((msg) => (
           <div key={msg.id} className={`flex items-start space-x-2 group ${msg.role === MessageRole.User ? 'flex-row-reverse space-x-reverse' : ''}`}>
             {/* Avatar */}
@@ -204,20 +279,51 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
         </button>
       </div>
 
-      {/* Input */}
-      <div className="p-4 border-t border-[#333] bg-[#202020]">
+      {/* Input Area with Drop Zone */}
+      <div 
+        className={`p-4 border-t border-[#333] bg-[#202020] relative transition-colors ${isDragOver ? 'bg-[#2a2a2a]' : ''}`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        {isDragOver && (
+            <div className="absolute inset-0 bg-[#0078d4]/20 border-2 border-dashed border-[#0078d4] flex items-center justify-center z-20 pointer-events-none">
+                <span className="text-[#4cc2ff] font-medium text-sm bg-[#1e1e1e] px-2 py-1 rounded">
+                    {language === 'zh' ? '添加为上下文' : 'Drop to add context'}
+                </span>
+            </div>
+        )}
+
+        {/* Attached Context Chips */}
+        {attachedContext.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-2 max-h-20 overflow-y-auto">
+                {attachedContext.map((file, index) => (
+                    <div key={index} className="flex items-center space-x-1 bg-[#333] text-xs text-gray-200 px-2 py-1 rounded-full border border-[#444]">
+                        <Paperclip size={10} />
+                        <span className="max-w-[100px] truncate">{file.name}</span>
+                        <button 
+                            onClick={() => removeContext(index)}
+                            className="text-gray-500 hover:text-red-400 ml-1"
+                        >
+                            <X size={10} />
+                        </button>
+                    </div>
+                ))}
+            </div>
+        )}
+
         <div className="relative">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-            placeholder={t.placeholder}
+            placeholder={attachedContext.length > 0 ? (language === 'zh' ? '询问关于这些文件...' : 'Ask about these files...') : t.placeholder}
             className="w-full bg-[#2d2d2d] text-white rounded-md py-2.5 pl-3 pr-10 text-sm focus:outline-none focus:ring-1 focus:ring-[#4cc2ff] border border-transparent placeholder-gray-500"
           />
           <button 
             onClick={handleSendMessage}
-            disabled={!input.trim() || isLoading}
+            disabled={(!input.trim() && attachedContext.length === 0) || isLoading}
             className="absolute right-2 top-2 p-1 text-[#4cc2ff] hover:text-white disabled:text-gray-600 transition-colors"
           >
             <Send size={16} />

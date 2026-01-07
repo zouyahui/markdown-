@@ -31,6 +31,9 @@ const App: React.FC = () => {
   const [files, setFiles] = useState<FileDoc[]>([]);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   const [openFileIds, setOpenFileIds] = useState<string[]>([]); // Track open tabs
+  const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]); // Multi-select state
+  const [lastFocusedId, setLastFocusedId] = useState<string | null>(null); // Anchor for Shift selection
+  const [searchQuery, setSearchQuery] = useState(''); // Lifted from Sidebar
   
   const [isAiOpen, setIsAiOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
@@ -219,6 +222,8 @@ graph TD
     setFiles([welcomeFile]);
     setOpenFileIds(['welcome']);
     setActiveFileId('welcome');
+    setSelectedFileIds(['welcome']);
+    setLastFocusedId('welcome');
   }, []);
 
   // Save to LocalStorage whenever files change
@@ -228,6 +233,37 @@ graph TD
     }
   }, [files]);
 
+  // --- Logic to ensure tree visibility ---
+  const ensureVisible = (targetId: string) => {
+    setFiles(prevFiles => {
+        const newFiles = [...prevFiles];
+        let changed = false;
+        // Optimization: Create map for fast lookup
+        const fileMap = new Map(newFiles.map(f => [f.id, f]));
+        
+        let current = fileMap.get(targetId);
+        
+        // Traverse up the tree
+        while (current && current.parentId) {
+            const parent = fileMap.get(current.parentId);
+            if (parent) {
+                if (!parent.isExpanded) {
+                    // Update parent expansion
+                    const parentIndex = newFiles.findIndex(f => f.id === parent.id);
+                    if (parentIndex !== -1) {
+                        newFiles[parentIndex] = { ...newFiles[parentIndex], isExpanded: true };
+                        changed = true;
+                    }
+                }
+                current = parent;
+            } else {
+                break;
+            }
+        }
+        return changed ? newFiles : prevFiles;
+    });
+  };
+
   // --- Tab Management ---
 
   const handleFileActivate = (id: string) => {
@@ -235,17 +271,174 @@ graph TD
         setOpenFileIds(prev => [...prev, id]);
     }
     setActiveFileId(id);
+    setSelectedFileIds([id]); // Sync selection
+    setLastFocusedId(id);
+    ensureVisible(id);
   };
 
   const handleCloseTab = (id: string) => {
     const newOpenIds = openFileIds.filter(fid => fid !== id);
     setOpenFileIds(newOpenIds);
     
+    // If we closed the active tab, switch to another one
     if (activeFileId === id) {
         if (newOpenIds.length > 0) {
-            setActiveFileId(newOpenIds[newOpenIds.length - 1]);
+            const nextId = newOpenIds[newOpenIds.length - 1];
+            setActiveFileId(nextId);
+            setSelectedFileIds([nextId]);
+            setLastFocusedId(nextId);
+            ensureVisible(nextId);
         } else {
             setActiveFileId(null);
+            setSelectedFileIds([]);
+            setLastFocusedId(null);
+        }
+    } else {
+        // If we closed a selected tab (that wasn't active), remove it from selection
+        if (selectedFileIds.includes(id)) {
+            setSelectedFileIds(prev => prev.filter(sid => sid !== id));
+        }
+    }
+  };
+
+  const handleTabClick = (id: string, modifiers: { ctrl: boolean, shift: boolean }) => {
+    const { ctrl, shift } = modifiers;
+
+    // 1. Always activate the clicked tab
+    setActiveFileId(id);
+    ensureVisible(id);
+    
+    // 2. Calculate new selection
+    let newSelection: string[] = [];
+    
+    if (shift && lastFocusedId && openFileIds.includes(lastFocusedId)) {
+        // Range selection based on Tab order
+        const startIdx = openFileIds.indexOf(lastFocusedId);
+        const endIdx = openFileIds.indexOf(id);
+        
+        if (startIdx !== -1 && endIdx !== -1) {
+             const min = Math.min(startIdx, endIdx);
+             const max = Math.max(startIdx, endIdx);
+             const range = openFileIds.slice(min, max + 1);
+             
+             if (ctrl) {
+                 // Add to existing
+                 newSelection = Array.from(new Set([...selectedFileIds, ...range]));
+             } else {
+                 newSelection = range;
+             }
+        } else {
+             newSelection = [id];
+        }
+    } else if (ctrl) {
+        // Add to selection (ensure the active one stays selected)
+        newSelection = Array.from(new Set([...selectedFileIds, id]));
+    } else {
+        // Simple click
+        newSelection = [id];
+    }
+    
+    setSelectedFileIds(newSelection);
+    setLastFocusedId(id);
+  };
+
+  // --- Sidebar Selection & Multi-select ---
+  
+  // Calculate visible files linearly to support Shift+Click range selection
+  const getVisibleFileIds = useCallback(() => {
+    // If searching, return filtered list
+    if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        return files
+            .filter(f => f.name.toLowerCase().includes(query))
+            .map(f => f.id);
+    }
+
+    // If tree view, traverse recursively based on expansion
+    const visibleIds: string[] = [];
+    const traverse = (parentId: string | null) => {
+        const children = files
+            .filter(f => f.parentId === parentId)
+            .sort((a, b) => {
+                if (a.type === b.type) return a.name.localeCompare(b.name);
+                return a.type === 'folder' ? -1 : 1;
+            });
+        
+        for (const child of children) {
+            visibleIds.push(child.id);
+            if (child.type === 'folder' && child.isExpanded) {
+                traverse(child.id);
+            }
+        }
+    };
+    traverse(null);
+    return visibleIds;
+  }, [files, searchQuery]);
+
+  const handleSidebarItemClick = (id: string, modifiers: { ctrl: boolean, shift: boolean }) => {
+    const { ctrl, shift } = modifiers;
+    
+    // Ensure item is visible in tree (useful if selecting from search results)
+    ensureVisible(id);
+
+    // 1. Handle Selection State
+    let newSelection: string[] = [];
+    
+    if (shift && lastFocusedId) {
+        const visibleIds = getVisibleFileIds();
+        const startIdx = visibleIds.indexOf(lastFocusedId);
+        const endIdx = visibleIds.indexOf(id);
+        
+        if (startIdx !== -1 && endIdx !== -1) {
+             const min = Math.min(startIdx, endIdx);
+             const max = Math.max(startIdx, endIdx);
+             const range = visibleIds.slice(min, max + 1);
+             
+             if (ctrl) {
+                 // Add range to existing, ensuring uniqueness
+                 const newSet = new Set([...selectedFileIds, ...range]);
+                 newSelection = Array.from(newSet);
+             } else {
+                 newSelection = range;
+             }
+        } else {
+             // Fallback if anchor is gone
+             newSelection = [id];
+             setLastFocusedId(id);
+        }
+    } else if (ctrl) {
+        // Toggle selection
+        if (selectedFileIds.includes(id)) {
+            newSelection = selectedFileIds.filter(sid => sid !== id);
+        } else {
+            newSelection = [...selectedFileIds, id];
+        }
+        setLastFocusedId(id); // Update anchor
+    } else {
+        // Simple click
+        newSelection = [id];
+        setLastFocusedId(id);
+    }
+    
+    // Safety: ensure at least one selected if user clicked (except maybe ctrl click toggling last off)
+    // Actually, allowing empty selection via Ctrl click is standard. 
+    // But if simple click, ensure it selects.
+    if (!ctrl && !shift && newSelection.length === 0) {
+        newSelection = [id];
+    }
+
+    setSelectedFileIds(newSelection);
+    
+    // 2. Handle Opening (Files Only)
+    // Only open tabs on simple single click. 
+    // Multi-select operations usually are for organizing, not opening 10 tabs at once.
+    if (!ctrl && !shift) {
+        const item = files.find(f => f.id === id);
+        if (item && item.type === 'file') {
+             if (!openFileIds.includes(id)) {
+                setOpenFileIds(prev => [...prev, id]);
+             }
+             setActiveFileId(id);
         }
     }
   };
@@ -459,19 +652,34 @@ graph TD
     ));
   };
 
-  const handleMoveFile = (fileId: string, targetFolderId: string | null) => {
-    if (fileId === targetFolderId) return;
+  // Supports batch moving of files
+  const handleMoveFile = (fileIds: string[], targetFolderId: string | null) => {
+    const movesToProcess: string[] = [];
 
-    // Cycle detection: Prevent moving a folder into itself or its children
-    let currentId = targetFolderId;
-    while (currentId) {
-        if (currentId === fileId) return; // Cycle detected
-        const parent = files.find(f => f.id === currentId)?.parentId;
-        currentId = parent || null;
+    for (const fileId of fileIds) {
+        if (fileId === targetFolderId) continue;
+
+        // Cycle detection: Prevent moving a folder into itself or its children
+        let isCycle = false;
+        let currentId = targetFolderId;
+        while (currentId) {
+            if (currentId === fileId) {
+                isCycle = true;
+                break;
+            }
+            const parent = files.find(f => f.id === currentId)?.parentId;
+            currentId = parent || null;
+        }
+
+        if (!isCycle) {
+            movesToProcess.push(fileId);
+        }
     }
 
+    if (movesToProcess.length === 0) return;
+
     setFiles(prev => prev.map(f => {
-        if (f.id === fileId) {
+        if (movesToProcess.includes(f.id)) {
             return { ...f, parentId: targetFolderId };
         }
         // Auto-expand target folder
@@ -528,7 +736,8 @@ graph TD
             <Sidebar 
                 files={files} 
                 activeFileId={activeFileId} 
-                onSelectFile={handleFileActivate}
+                selectedFileIds={selectedFileIds}
+                onSelect={handleSidebarItemClick}
                 onOpenFile={handleOpenFile}
                 onCreateFile={handleCreateFile}
                 onCreateFolder={handleCreateFolder}
@@ -538,6 +747,8 @@ graph TD
                 onLocateFile={handleLocateFile}
                 onOpenSettings={() => setIsSettingsOpen(true)}
                 language={language}
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
             />
         )}
         
@@ -558,7 +769,8 @@ graph TD
                         files={files}
                         openFileIds={openFileIds}
                         activeFileId={activeFileId}
-                        onSelectFile={setActiveFileId}
+                        selectedFileIds={selectedFileIds}
+                        onSelect={handleTabClick}
                         onCloseFile={handleCloseTab}
                     />
                 </div>
@@ -696,6 +908,7 @@ graph TD
                     onUpdateChatHistory={(history) => handleUpdateChatHistory(activeFile.id, history)}
                     apiKey={apiKey}
                     language={language}
+                    allFiles={files}
                 />
              )}
            </div>

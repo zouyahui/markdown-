@@ -6,22 +6,26 @@ import { translations } from '../translations';
 interface SidebarProps {
   files: FileDoc[];
   activeFileId: string | null;
-  onSelectFile: (id: string) => void;
+  selectedFileIds: string[]; // Added
+  onSelect: (id: string, modifiers: { ctrl: boolean, shift: boolean }) => void; // Changed from onSelectFile
   onOpenFile: () => void;
   onCreateFile: () => void;
   onCreateFolder: () => void;
   onRenameFile: (id: string, newName: string) => void;
-  onMoveFile: (fileId: string, targetFolderId: string | null) => void;
+  onMoveFile: (fileIds: string[], targetFolderId: string | null) => void; // Updated to accept array
   onToggleFolder: (folderId: string) => void;
   onLocateFile: (file: FileDoc) => void;
   onOpenSettings: () => void;
   language: Language;
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
   files, 
   activeFileId, 
-  onSelectFile, 
+  selectedFileIds,
+  onSelect, 
   onOpenFile,
   onCreateFile,
   onCreateFolder,
@@ -30,11 +34,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onToggleFolder,
   onLocateFile,
   onOpenSettings,
-  language
+  language,
+  searchQuery,
+  onSearchChange
 }) => {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [tempName, setTempName] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -79,7 +84,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Drag and Drop Handlers
   const handleDragStart = (e: React.DragEvent, id: string) => {
     e.stopPropagation();
-    e.dataTransfer.setData('text/plain', id);
+    
+    // Determine which IDs to drag.
+    // If the user drags an item that is part of the selection, drag all selected items.
+    // If the user drags an item NOT in the selection, drag only that item.
+    let idsToDrag = [id];
+    if (selectedFileIds.includes(id)) {
+        idsToDrag = selectedFileIds;
+    }
+
+    // Use JSON string to pass array of IDs
+    e.dataTransfer.setData('text/plain', JSON.stringify(idsToDrag));
     e.dataTransfer.effectAllowed = 'move';
   };
 
@@ -93,10 +108,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
     e.preventDefault();
     e.stopPropagation(); // Stop bubbling
     setDragOverFolderId(null);
-    const draggedId = e.dataTransfer.getData('text/plain');
     
-    if (draggedId) {
-       onMoveFile(draggedId, targetFolderId);
+    const data = e.dataTransfer.getData('text/plain');
+    if (data) {
+        try {
+            const parsed = JSON.parse(data);
+            const ids = Array.isArray(parsed) ? parsed : [data];
+            onMoveFile(ids, targetFolderId);
+        } catch (e) {
+            // Fallback for simple string data (legacy support)
+            onMoveFile([data], targetFolderId);
+        }
     }
   };
 
@@ -112,7 +134,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return items.map(item => {
       const isFolder = item.type === 'folder';
       const isRenaming = renamingId === item.id;
-      // const isActive = activeFileId === item.id; // Sidebar doesn't strictly show "Active" state if using tabs, but we can highlight selected.
+      const isSelected = selectedFileIds.includes(item.id);
       
       // Calculate padding based on depth
       const paddingLeft = `${depth * 12 + 12}px`;
@@ -123,19 +145,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <React.Fragment key={item.id}>
             <div 
                 className={`
-                    relative group flex items-center pr-2 py-1 cursor-pointer select-none transition-colors border border-transparent
-                    hover:bg-[#2a2a2a]
+                    relative group flex items-center pr-2 py-1 cursor-pointer select-none transition-colors border-l-2
                     ${isDragTarget ? 'bg-[#3d3d3d] border-[#0078d4]' : ''}
+                    ${isSelected ? 'bg-[#37373d] border-[#4cc2ff]' : 'border-transparent hover:bg-[#2a2a2a]'}
                 `}
                 style={{ paddingLeft }}
-                onClick={() => isFolder ? onToggleFolder(item.id) : onSelectFile(item.id)}
+                onClick={(e) => onSelect(item.id, { ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey })}
                 draggable={!isRenaming}
                 onDragStart={(e) => handleDragStart(e, item.id)}
                 onDragOver={(e) => handleDragOver(e, dropTargetId)}
                 onDrop={(e) => handleDrop(e, dropTargetId)}
             >
-                {/* Arrow for folders */}
-                <div className="w-4 h-4 flex items-center justify-center mr-1 text-gray-500 hover:text-white">
+                {/* Arrow for folders - Click toggles expansion without changing selection logic necessarily, 
+                    but here we prevent the row click from firing */}
+                <div 
+                    className="w-4 h-4 flex items-center justify-center mr-1 text-gray-500 hover:text-white"
+                    onClick={(e) => { e.stopPropagation(); if(isFolder) onToggleFolder(item.id); }}
+                >
                     {isFolder && (
                         item.isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />
                     )}
@@ -164,7 +190,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             className="w-full bg-[#111] text-white text-sm px-1 py-0.5 border border-[#0078d4] outline-none rounded-sm"
                         />
                     ) : (
-                        <div className="truncate text-sm text-gray-300 group-hover:text-white">
+                        <div className={`truncate text-sm ${isSelected ? 'text-white' : 'text-gray-300 group-hover:text-white'}`}>
                             {item.name}
                         </div>
                     )}
@@ -214,7 +240,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             type="text" 
             placeholder={t.searchPlaceholder} 
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => onSearchChange(e.target.value)}
             className="w-full bg-[#2d2d2d] text-sm text-white pl-8 pr-3 py-1.5 rounded-md border border-transparent focus:border-[#4cc2ff] focus:bg-[#1f1f1f] outline-none transition-all placeholder-gray-500"
           />
         </div>
@@ -267,16 +293,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {filteredItems.length === 0 ? (
                     <div className="text-center mt-4 text-gray-500 text-sm italic">{t.noMatches}</div>
                 ) : (
-                    filteredItems.map(item => (
-                        <div 
-                            key={item.id} 
-                            onClick={() => item.type === 'folder' ? onToggleFolder(item.id) : onSelectFile(item.id)}
-                            className="flex items-center p-2 hover:bg-[#333] rounded cursor-pointer text-sm text-gray-300"
-                        >
-                            {item.type === 'folder' ? <Folder size={14} className="mr-2 text-[#e8b339]" /> : <FileText size={14} className="mr-2 text-[#4cc2ff]" />}
-                            {item.name}
-                        </div>
-                    ))
+                    filteredItems.map(item => {
+                        const isSelected = selectedFileIds.includes(item.id);
+                        return (
+                            <div 
+                                key={item.id} 
+                                onClick={(e) => onSelect(item.id, { ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey })}
+                                className={`
+                                    flex items-center p-2 rounded cursor-pointer text-sm
+                                    ${isSelected ? 'bg-[#37373d] text-white' : 'hover:bg-[#333] text-gray-300'}
+                                `}
+                            >
+                                {item.type === 'folder' ? <Folder size={14} className="mr-2 text-[#e8b339]" /> : <FileText size={14} className="mr-2 text-[#4cc2ff]" />}
+                                {item.name}
+                            </div>
+                        );
+                    })
                 )}
             </div>
         ) : (
