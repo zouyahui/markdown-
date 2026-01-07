@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Sparkles, Send, X, Bot, User, Loader2, FileText, ChevronDown } from 'lucide-react';
-import { ChatMessage, MessageRole, AVAILABLE_MODELS } from '../types';
+import { ChatMessage, MessageRole, AVAILABLE_MODELS, Language } from '../types';
 import { chatWithDocument, summarizeMarkdown } from '../services/geminiService';
+import { translations } from '../translations';
 
 interface AIAssistantProps {
   isOpen: boolean;
@@ -11,6 +12,7 @@ interface AIAssistantProps {
   chatHistory: ChatMessage[];
   onUpdateChatHistory: (history: ChatMessage[]) => void;
   apiKey: string;
+  language: Language;
 }
 
 export const AIAssistant: React.FC<AIAssistantProps> = ({ 
@@ -20,13 +22,16 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
     fileName, 
     chatHistory, 
     onUpdateChatHistory,
-    apiKey
+    apiKey,
+    language
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>(chatHistory);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedModel, setSelectedModel] = useState(AVAILABLE_MODELS[0].id);
   const scrollRef = useRef<HTMLDivElement>(null);
+  
+  const t = translations[language].ai;
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -46,10 +51,10 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
         setMessages([{
             id: 'init',
             role: MessageRole.Model,
-            text: `Hi! I'm your Gemini AI assistant. I've read "${fileName}". Ask me to summarize it or explain any section.`
+            text: t.greeting.replace('{fileName}', fileName)
         }]);
     }
-  }, [isOpen, fileName]); // messages is intentionally omitted from deps to avoid re-triggering after setting it
+  }, [isOpen, fileName, language]); // added language to update init message if cleared and reopened in new lang
 
   const handleSendMessage = async () => {
     if (!input.trim() || isLoading) return;
@@ -64,7 +69,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
     setInput('');
     setIsLoading(true);
 
-    const responseText = await chatWithDocument(markdownContent, messages, userMsg.text, selectedModel, apiKey);
+    const responseText = await chatWithDocument(markdownContent, messages, userMsg.text, selectedModel, apiKey, language);
 
     const botMsg: ChatMessage = {
       id: (Date.now() + 1).toString(),
@@ -82,12 +87,12 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
     const userMsg: ChatMessage = {
         id: Date.now().toString(),
         role: MessageRole.User,
-        text: "Summarize this document."
+        text: t.summarize
     };
     setMessages(prev => [...prev, userMsg]);
     setIsLoading(true);
 
-    const summary = await summarizeMarkdown(markdownContent, selectedModel, apiKey);
+    const summary = await summarizeMarkdown(markdownContent, selectedModel, apiKey, language);
     
     const botMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -107,7 +112,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
       <div className="h-12 border-b border-[#333] flex items-center justify-between px-4 bg-[#252525]">
         <div className="flex items-center space-x-2 text-[#4cc2ff]">
           <Sparkles size={16} />
-          <span className="font-semibold text-sm">Gemini</span>
+          <span className="font-semibold text-sm">{t.title}</span>
         </div>
 
         {/* Model Selector */}
@@ -148,7 +153,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
         {isLoading && (
           <div className="flex items-center space-x-2 text-gray-500 text-xs pl-2">
             <Loader2 size={12} className="animate-spin" />
-            <span>Gemini is thinking...</span>
+            <span>{t.thinking}</span>
           </div>
         )}
       </div>
@@ -161,15 +166,15 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
             className="flex items-center space-x-1.5 px-3 py-1.5 bg-[#333] hover:bg-[#444] rounded-full text-xs text-white whitespace-nowrap transition-colors border border-[#444]"
         >
             <FileText size={12} />
-            <span>Summarize</span>
+            <span>{t.summarize}</span>
         </button>
         <button 
-             onClick={() => { setInput('What are the key takeaways?'); handleSendMessage(); }}
+             onClick={() => { setInput(language === 'zh' ? '关键要点是什么？' : 'What are the key takeaways?'); handleSendMessage(); }}
              disabled={isLoading}
             className="flex items-center space-x-1.5 px-3 py-1.5 bg-[#333] hover:bg-[#444] rounded-full text-xs text-white whitespace-nowrap transition-colors border border-[#444]"
         >
             <Sparkles size={12} />
-            <span>Key Takeaways</span>
+            <span>{t.keyTakeaways}</span>
         </button>
       </div>
 
@@ -181,7 +186,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-            placeholder="Ask about the file..."
+            placeholder={t.placeholder}
             className="w-full bg-[#2d2d2d] text-white rounded-md py-2.5 pl-3 pr-10 text-sm focus:outline-none focus:ring-1 focus:ring-[#4cc2ff] border border-transparent placeholder-gray-500"
           />
           <button 

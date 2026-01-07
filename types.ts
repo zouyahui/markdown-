@@ -1,3 +1,4 @@
+
 export interface FileDoc {
   id: string;
   name: string;
@@ -28,6 +29,8 @@ export interface GeminiConfig {
   topK?: number;
   topP?: number;
 }
+
+export type Language = 'en' | 'zh';
 
 export const AVAILABLE_MODELS = [
   { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash (Fast)' },

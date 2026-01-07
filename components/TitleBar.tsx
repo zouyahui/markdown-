@@ -1,11 +1,15 @@
 import React from 'react';
 import { Minus, Square, X, AppWindow, HelpCircle } from 'lucide-react';
+import { Language } from '../types';
+import { translations } from '../translations';
 
 interface TitleBarProps {
   onHelp?: () => void;
+  language?: Language;
 }
 
-export const TitleBar: React.FC<TitleBarProps> = ({ onHelp }) => {
+export const TitleBar: React.FC<TitleBarProps> = ({ onHelp, language = 'en' }) => {
+  const t = translations[language].titleBar;
   
   // Helper to send commands to Electron main process
   const sendIpc = (channel: string) => {
@@ -28,7 +32,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onHelp }) => {
             <div className="bg-[#4cc2ff] text-black p-0.5 rounded-sm">
                  <AppWindow size={12} strokeWidth={3} />
             </div>
-            <span className="font-semibold tracking-wide text-gray-300">WinMD Explorer</span>
+            <span className="font-semibold tracking-wide text-gray-300">{t.title}</span>
         </div>
       </div>
       
@@ -38,7 +42,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onHelp }) => {
             <button 
                 onClick={onHelp}
                 className="h-full w-10 flex items-center justify-center hover:bg-[#333] text-gray-400 hover:text-white transition-colors mr-1"
-                title="About"
+                title={t.about}
             >
                 <HelpCircle size={14} />
             </button>

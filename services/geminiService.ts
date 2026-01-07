@@ -1,5 +1,5 @@
 import { GoogleGenAI, Content } from "@google/genai";
-import { ChatMessage, MessageRole } from "../types";
+import { ChatMessage, MessageRole, Language } from "../types";
 
 // Helper to create client with user provided key or fallback to env
 const getClient = (apiKey?: string) => {
@@ -10,16 +10,19 @@ const getClient = (apiKey?: string) => {
     return new GoogleGenAI({ apiKey: key });
 };
 
-export const summarizeMarkdown = async (markdownContent: string, modelId: string, apiKey?: string): Promise<string> => {
+export const summarizeMarkdown = async (markdownContent: string, modelId: string, apiKey?: string, language: Language = 'en'): Promise<string> => {
   try {
     const ai = getClient(apiKey);
-    const prompt = `Please provide a concise summary of the following Markdown document. Highlight key points and potential action items if any.\n\nDocument Content:\n${markdownContent}`;
+    
+    const langInstruction = language === 'zh' ? "Please reply in Simplified Chinese." : "Please reply in English.";
+    
+    const prompt = `Please provide a concise summary of the following Markdown document. Highlight key points and potential action items if any. ${langInstruction}\n\nDocument Content:\n${markdownContent}`;
     
     const response = await ai.models.generateContent({
       model: modelId,
       contents: prompt,
       config: {
-        systemInstruction: "You are a helpful desktop assistant. Keep summaries professional and structured.",
+        systemInstruction: `You are a helpful desktop assistant. Keep summaries professional and structured. ${langInstruction}`,
       }
     });
 
@@ -27,9 +30,9 @@ export const summarizeMarkdown = async (markdownContent: string, modelId: string
   } catch (error: any) {
     console.error("Summarization error:", error);
     if (error.message.includes("Missing API Key")) {
-        return "Please set your Gemini API Key in Settings (Gear icon).";
+        return language === 'zh' ? "请在设置中配置 Gemini API Key。" : "Please set your Gemini API Key in Settings (Gear icon).";
     }
-    return "Error generating summary. Please check your API key and network connection.";
+    return language === 'zh' ? "生成总结出错，请检查网络或 API Key。" : "Error generating summary. Please check your API key and network connection.";
   }
 };
 
@@ -38,10 +41,14 @@ export const chatWithDocument = async (
   history: ChatMessage[],
   newMessage: string,
   modelId: string,
-  apiKey?: string
+  apiKey?: string,
+  language: Language = 'en'
 ): Promise<string> => {
   try {
     const ai = getClient(apiKey);
+    
+    const langInstruction = language === 'zh' ? "You must reply in Simplified Chinese." : "You must reply in English.";
+
     const contextInstruction = `You are a smart assistant integrated into a Markdown file viewer. 
     The user is currently viewing a file with the following content:
     
@@ -49,7 +56,8 @@ export const chatWithDocument = async (
     ${markdownContent}
     --- END OF FILE ---
     
-    Answer the user's questions based on the file content provided above. If the answer is not in the file, use your general knowledge but mention that it's not in the file.`;
+    Answer the user's questions based on the file content provided above. If the answer is not in the file, use your general knowledge but mention that it's not in the file.
+    ${langInstruction}`;
 
     // Convert app history to SDK history format
     const sdkHistory: Content[] = history
@@ -71,13 +79,13 @@ export const chatWithDocument = async (
       message: newMessage
     });
     
-    return response.text || "I couldn't understand that.";
+    return response.text || (language === 'zh' ? "我没听懂。" : "I couldn't understand that.");
 
   } catch (error: any) {
     console.error("Chat error:", error);
     if (error.message.includes("Missing API Key")) {
-        return "Please set your Gemini API Key in Settings (Gear icon).";
+        return language === 'zh' ? "请在设置中配置 Gemini API Key。" : "Please set your Gemini API Key in Settings (Gear icon).";
     }
-    return "Sorry, I encountered an error. Please check your API key.";
+    return language === 'zh' ? "抱歉，遇到错误。请检查您的 API Key。" : "Sorry, I encountered an error. Please check your API key.";
   }
 };

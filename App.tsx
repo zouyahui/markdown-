@@ -8,15 +8,23 @@ import { MarkdownEditor } from './components/MarkdownEditor';
 import { AIAssistant } from './components/AIAssistant';
 import { HelpDialog } from './components/HelpDialog';
 import { SettingsDialog } from './components/SettingsDialog';
-import { FileDoc, ChatMessage } from './types';
+import { FileDoc, ChatMessage, Language } from './types';
+import { translations } from './translations';
 import { Sparkles, Layout, PenTool, Eye, Save, MapPin, PanelLeftClose, PanelLeft } from 'lucide-react';
 
-// Electron IPC Helper
-const electron = {
-    get ipcRenderer() {
-        // @ts-ignore
-        return window.require ? window.require('electron').ipcRenderer : null;
+// Robust Electron IPC Helper
+const getIpcRenderer = () => {
+  try {
+    // @ts-ignore
+    if (typeof window !== 'undefined' && window.require) {
+      // @ts-ignore
+      const electron = window.require('electron');
+      return electron.ipcRenderer;
     }
+  } catch (e) {
+    console.warn("Electron require failed", e);
+  }
+  return null;
 };
 
 const App: React.FC = () => {
@@ -31,8 +39,13 @@ const App: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [isSplitView, setIsSplitView] = useState(false);
   const [apiKey, setApiKey] = useState('');
+  const [language, setLanguage] = useState<Language>('en');
+  
+  // Hidden input for browser fallback
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const activeFile = files.find(f => f.id === activeFileId);
+  const t = translations[language]; // Current translation object
 
   // --- Sync Scrolling Refs ---
   const editorInstanceRef = useRef<any>(null); // Monaco instance
@@ -88,17 +101,26 @@ const App: React.FC = () => {
     editorInstanceRef.current = null; // Reset editor ref
   }, [activeFileId]);
 
-  // Load API Key from local storage
+  // Load Settings from local storage
   useEffect(() => {
     const savedKey = localStorage.getItem('winmd_apikey');
     if (savedKey) {
         setApiKey(savedKey);
+    }
+    const savedLang = localStorage.getItem('winmd_language') as Language;
+    if (savedLang && (savedLang === 'en' || savedLang === 'zh')) {
+        setLanguage(savedLang);
     }
   }, []);
 
   const handleSaveApiKey = (key: string) => {
     setApiKey(key);
     localStorage.setItem('winmd_apikey', key);
+  };
+
+  const handleLanguageChange = (lang: Language) => {
+    setLanguage(lang);
+    localStorage.setItem('winmd_language', lang);
   };
 
   // Load from LocalStorage on mount
@@ -117,10 +139,6 @@ const App: React.FC = () => {
             chatHistory: f.chatHistory || []
           }));
           setFiles(migratedFiles);
-          
-          // Restore open tabs if possible, or just open the last active one
-          // For simplicity in this version, we start with no tabs open unless we want to persist that too.
-          // Let's persist a simple welcome or nothing.
           return;
         }
       } catch (e) {
@@ -137,22 +155,64 @@ const App: React.FC = () => {
       lastModified: Date.now(),
       content: `# Welcome to WinMD Explorer
 
-This is a **Windows 11 inspired** Markdown explorer.
+WinMD is a **Windows 11 inspired** Markdown explorer and editor powered by Gemini AI.
 
-## New Features 🚀
-- **Tabs Support**: Multitask like a pro.
-- **Professional Editor**: Integrated Monaco Editor (VS Code core).
-- **Sync Scrolling**: Editor and preview scroll together.
-- **Native File System**: Open and Save files directly to your hard drive.
+## Features at a Glance 🚀
+- **Tabbed Interface**: Work on multiple files simultaneously.
+- **Split View**: Edit and preview in real-time with synchronized scrolling.
+- **Gemini AI**: Click the **AI** button to chat with your documents, summarize text, or ask questions.
+- **Native File System**: Open, edit, and save files directly to your computer.
 
-## Storage Note 💾
-- **Auto-Save**: Files are saved to local storage automatically.
-- **HDD Link**: If you open a file from disk, WinMD remembers the path.
+---
 
-## How to use
-1. Use the "Open" button in the sidebar.
-2. Click "Folder" to create a new folder.
-3. Drag items to organize.
+## Rich Content Support
+
+### 1. Code Highlighting
+WinMD uses Monaco Editor (VS Code) for editing and Prism for highlighting.
+
+\`\`\`typescript
+const greeting = "Hello, WinMD!";
+console.log(greeting);
+\`\`\`
+
+### 2. Mathematical Equations
+Native support for KaTeX.
+
+**Inline:** $E = mc^2$
+
+**Block:**
+$$
+\\frac{1}{\\sigma\\sqrt{2\\pi}}\\exp\\left(-\\frac{(x-\\mu)^2}{2\\sigma^2}\\right)
+$$
+
+### 3. Mermaid Diagrams
+Visualize charts and graphs directly in your markdown.
+
+\`\`\`mermaid
+graph TD
+    A[Start] --> B{Is it working?}
+    B -- Yes --> C[Great!]
+    B -- No --> D[Debug]
+    D --> B
+\`\`\`
+
+### 4. GFM Tables & Tasks
+| Feature | Status |
+| :--- | :--- |
+| **Tables** | ✅ Supported |
+| **Task Lists** | ✅ Supported |
+| **Strikethrough** | ✅ Supported |
+
+- [x] Install WinMD
+- [x] Try Split View
+- [ ] Star the repo
+
+---
+
+## Getting Started
+1. **Open a File**: Click "Open" in the sidebar to browse your disk.
+2. **Create a Folder**: Organize your project structure.
+3. **Settings**: Click the gear icon to configure your **Gemini API Key**.
       `,
       chatHistory: []
     };
@@ -182,7 +242,6 @@ This is a **Windows 11 inspired** Markdown explorer.
     setOpenFileIds(newOpenIds);
     
     if (activeFileId === id) {
-        // Switch to the previous tab or null
         if (newOpenIds.length > 0) {
             setActiveFileId(newOpenIds[newOpenIds.length - 1]);
         } else {
@@ -191,91 +250,138 @@ This is a **Windows 11 inspired** Markdown explorer.
     }
   };
 
-  // --- Native File Operations ---
+  // --- Native & Browser File Operations ---
+
+  const loadFileFromIpc = async (filePath: string) => {
+    const ipc = getIpcRenderer();
+    if (!ipc) return;
+
+    // Check if already open
+    const existingFile = files.find(f => f.path === filePath);
+    if (existingFile) {
+        handleFileActivate(existingFile.id);
+        return;
+    }
+
+    try {
+        const { content, lastModified } = await ipc.invoke('read-file', filePath);
+        const name = filePath.replace(/^.*[\\/]/, '');
+
+        const newFile: FileDoc = {
+            id: Math.random().toString(36).substr(2, 9),
+            name: name,
+            content: content,
+            type: 'file',
+            parentId: null,
+            lastModified: lastModified,
+            path: filePath,
+            chatHistory: []
+        };
+
+        setFiles(prev => [...prev, newFile]);
+        handleFileActivate(newFile.id);
+    } catch (error) {
+        console.error("Failed to read file from IPC", error);
+    }
+  };
 
   const handleOpenFile = async () => {
-      if (!electron.ipcRenderer) {
-          alert("This feature is only available in the desktop app.");
-          return;
+      const ipc = getIpcRenderer();
+      let ipcSuccess = false;
+
+      if (ipc) {
+          try {
+              const filePaths: string[] = await ipc.invoke('open-file-dialog');
+              if (filePaths && filePaths.length > 0) {
+                  for (const filePath of filePaths) {
+                      await loadFileFromIpc(filePath);
+                  }
+              }
+              // Even if user cancels dialog, we consider IPC call successful in initiating
+              ipcSuccess = true;
+          } catch (e) {
+              console.error("Electron open dialog failed", e);
+              ipcSuccess = false;
+          }
       }
 
-      try {
-          const filePaths: string[] = await electron.ipcRenderer.invoke('open-file-dialog');
-          
-          if (!filePaths || filePaths.length === 0) return;
-
-          for (const filePath of filePaths) {
-              // Check if already open
-              const existingFile = files.find(f => f.path === filePath);
-              if (existingFile) {
-                  handleFileActivate(existingFile.id);
-                  continue;
-              }
-
-              // Read file content
-              const { content, lastModified } = await electron.ipcRenderer.invoke('read-file', filePath);
-              
-              // Extract name from path (cross-platform way)
-              const name = filePath.replace(/^.*[\\/]/, '');
-
-              const newFile: FileDoc = {
-                  id: Math.random().toString(36).substr(2, 9),
-                  name: name,
-                  content: content,
-                  type: 'file',
-                  parentId: null,
-                  lastModified: lastModified,
-                  path: filePath,
-                  chatHistory: []
-              };
-
-              setFiles(prev => [...prev, newFile]);
-              handleFileActivate(newFile.id);
-          }
-      } catch (e) {
-          console.error("Failed to open file", e);
-          alert("Error opening file");
+      // Fallback: Trigger hidden browser file input if IPC is not available or failed
+      if (!ipcSuccess && fileInputRef.current) {
+          fileInputRef.current.click();
       }
   };
 
+  const handleBrowserFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+        for (let i = 0; i < e.target.files.length; i++) {
+            const file = e.target.files[i];
+            const text = await file.text();
+            
+            // Basic deduplication by name for browser files
+            const existing = files.find(f => f.name === file.name && !f.path);
+            if (existing) {
+                handleFileActivate(existing.id);
+                continue;
+            }
+
+            const newFile: FileDoc = {
+                id: Math.random().toString(36).substr(2, 9),
+                name: file.name,
+                content: text,
+                type: 'file',
+                parentId: null,
+                lastModified: file.lastModified,
+                chatHistory: []
+            };
+            setFiles(prev => [...prev, newFile]);
+            handleFileActivate(newFile.id);
+        }
+    }
+    // Reset value
+    e.target.value = ''; 
+  };
+
   const saveFileToDisk = async (file: FileDoc) => {
-      if (!electron.ipcRenderer) {
-          // Fallback to blob download for browser mode
-          const blob = new Blob([file.content], { type: 'text/markdown' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = file.name;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-          return;
-      }
+      const ipc = getIpcRenderer();
 
-      try {
-          let savePath = file.path;
+      // Electron Save
+      if (ipc) {
+          try {
+              let savePath = file.path;
 
-          // If no path, ask for location (Save As)
-          if (!savePath) {
-              const resultPath: string = await electron.ipcRenderer.invoke('save-file-dialog', file.name);
-              if (!resultPath) return; // User cancelled
-              savePath = resultPath;
+              // If no path, ask for location (Save As)
+              if (!savePath) {
+                  const resultPath: string = await ipc.invoke('save-file-dialog', file.name);
+                  if (!resultPath) return; // User cancelled
+                  savePath = resultPath;
+              }
+
+              // Write file
+              await ipc.invoke('write-file', savePath, file.content);
+
+              // Update file state with new path and name
+              const newName = savePath.replace(/^.*[\\/]/, '');
+              setFiles(prev => prev.map(f => 
+                  f.id === file.id ? { ...f, path: savePath, name: newName, lastModified: Date.now() } : f
+              ));
+              return;
+
+          } catch (e) {
+              console.error("Failed to save file via IPC", e);
+              // Fallthrough to browser download
           }
-
-          // Write file
-          await electron.ipcRenderer.invoke('write-file', savePath, file.content);
-
-          // Update file state with new path and name
-          const newName = savePath.replace(/^.*[\\/]/, '');
-          setFiles(prev => prev.map(f => 
-              f.id === file.id ? { ...f, path: savePath, name: newName, lastModified: Date.now() } : f
-          ));
-
-      } catch (e) {
-          console.error("Failed to save file", e);
-          alert("Error saving file");
       }
+
+      // Fallback: Browser Download
+      const blob = new Blob([file.content], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
   };
 
   // Keyboard Shortcuts (Ctrl+S)
@@ -296,12 +402,12 @@ This is a **Windows 11 inspired** Markdown explorer.
       return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeFileId, files]);
 
-  // --- End Native File Operations ---
+  // --- End File Operations ---
 
   const handleCreateFile = () => {
     const newFile: FileDoc = {
         id: Math.random().toString(36).substr(2, 9),
-        name: `Untitled-${files.filter(f => f.type === 'file').length + 1}.md`,
+        name: `${t.common.untitled}-${files.filter(f => f.type === 'file').length + 1}.md`,
         content: '# New Document\n\nStart typing...',
         type: 'file',
         parentId: null, // Create in root by default
@@ -316,7 +422,7 @@ This is a **Windows 11 inspired** Markdown explorer.
   const handleCreateFolder = () => {
     const newFolder: FileDoc = {
       id: Math.random().toString(36).substr(2, 9),
-      name: `New Folder`,
+      name: `${t.common.untitled} Folder`,
       content: '',
       type: 'folder',
       parentId: null,
@@ -385,21 +491,36 @@ This is a **Windows 11 inspired** Markdown explorer.
   const handleLocateFile = (file: FileDoc) => {
     if (file.path) {
         try {
-            if (electron.ipcRenderer) {
-                electron.ipcRenderer.send('show-in-folder', file.path);
+            const ipc = getIpcRenderer();
+            if (ipc) {
+                ipc.send('show-in-folder', file.path);
+            } else {
+                 alert(`File path is: ${file.path}`);
             }
         } catch (e) {
             alert(`File path is: ${file.path}`);
         }
     } else {
-        alert("This file is stored in browser memory and not linked to a physical file yet. Save it first.");
+        alert(t.sidebar.fileIsInMemory);
     }
   };
 
   return (
     <div className="flex flex-col h-screen w-screen bg-black text-white overflow-hidden border border-[#333] shadow-2xl rounded-none sm:rounded-lg sm:my-4 sm:mx-4 sm:h-[calc(100vh-2rem)] sm:w-[calc(100vw-2rem)]">
+      
+      {/* Fallback File Input */}
+      <input 
+          type="file" 
+          multiple 
+          accept=".md,.txt,.markdown" 
+          className="hidden" 
+          ref={fileInputRef}
+          onChange={handleBrowserFileSelect}
+      />
+
       <TitleBar 
         onHelp={() => setIsHelpOpen(true)}
+        language={language}
       />
       
       <div className="flex flex-1 overflow-hidden relative">
@@ -416,6 +537,7 @@ This is a **Windows 11 inspired** Markdown explorer.
                 onToggleFolder={handleToggleFolder}
                 onLocateFile={handleLocateFile}
                 onOpenSettings={() => setIsSettingsOpen(true)}
+                language={language}
             />
         )}
         
@@ -465,10 +587,10 @@ This is a **Windows 11 inspired** Markdown explorer.
                         if (isSplitView) setIsSplitView(false);
                       }}
                       className={`flex items-center space-x-1.5 px-2 py-1 rounded-md transition-colors ${isEditing && !isSplitView ? 'bg-[#333] text-white' : 'hover:bg-[#333] text-gray-400'}`}
-                      title={isEditing ? "Switch to Preview" : "Switch to Edit Mode"}
+                      title={isEditing ? t.common.preview : t.common.edit}
                     >
                       {isEditing ? <Eye size={14} /> : <PenTool size={14} />}
-                      <span>{isEditing ? 'Preview' : 'Edit'}</span>
+                      <span>{isEditing ? t.common.preview : t.common.edit}</span>
                     </button>
                     
                     <div className="h-3 w-[1px] bg-[#333]"></div>
@@ -476,10 +598,10 @@ This is a **Windows 11 inspired** Markdown explorer.
                     <button 
                       onClick={() => saveFileToDisk(activeFile)}
                       className="flex items-center space-x-1.5 px-2 py-1 rounded-md transition-colors hover:bg-[#333] text-gray-400 hover:text-white"
-                      title={activeFile.path ? "Save (Ctrl+S)" : "Save As..."}
+                      title={activeFile.path ? `${t.common.save} (Ctrl+S)` : t.common.download}
                     >
                       <Save size={14} />
-                      <span>Save</span>
+                      <span>{activeFile.path ? t.common.save : t.common.download}</span>
                     </button>
 
                     {activeFile.path && (
@@ -491,7 +613,7 @@ This is a **Windows 11 inspired** Markdown explorer.
                                 title={activeFile.path}
                             >
                                 <MapPin size={14} />
-                                <span className="hidden xl:inline">Locate</span>
+                                <span className="hidden xl:inline">{t.common.locate}</span>
                             </button>
                         </>
                     )}
@@ -536,6 +658,7 @@ This is a **Windows 11 inspired** Markdown explorer.
                             content={activeFile.content} 
                             ref={viewerContainerRef}
                             onScroll={handleViewerScroll}
+                            language={language}
                         />
                     </div>
                 </>
@@ -549,12 +672,15 @@ This is a **Windows 11 inspired** Markdown explorer.
                                 editorRefProp={editorInstanceRef}
                         />
                     ) : (
-                        <MarkdownViewer content={activeFile?.content || ''} />
+                        <MarkdownViewer 
+                          content={activeFile?.content || ''} 
+                          language={language}
+                        />
                     )
                 ) : (
-                    <div className="flex-1 flex items-center justify-center text-gray-500 flex-col space-y-4">
+                    <div className="flex-1 flex items-center justify-center text-gray-500 flex-col space-y-4 select-none">
                         <div className="text-4xl">👋</div>
-                        <p>Select a file to start editing</p>
+                        <p>{t.viewer.selectFile}</p>
                     </div>
                 )
              )}
@@ -569,19 +695,26 @@ This is a **Windows 11 inspired** Markdown explorer.
                     chatHistory={activeFile.chatHistory || []}
                     onUpdateChatHistory={(history) => handleUpdateChatHistory(activeFile.id, history)}
                     apiKey={apiKey}
+                    language={language}
                 />
              )}
            </div>
         </main>
       </div>
 
-      <HelpDialog isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+      <HelpDialog 
+        isOpen={isHelpOpen} 
+        onClose={() => setIsHelpOpen(false)} 
+        language={language}
+      />
       
       <SettingsDialog 
         isOpen={isSettingsOpen} 
         onClose={() => setIsSettingsOpen(false)} 
         apiKey={apiKey}
         onSaveApiKey={handleSaveApiKey}
+        language={language}
+        onLanguageChange={handleLanguageChange}
       />
     </div>
   );

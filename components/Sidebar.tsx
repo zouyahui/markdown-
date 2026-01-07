@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { FileText, Folder, FolderOpen, Plus, Search, Edit2, ChevronRight, ChevronDown, FolderPlus, LocateFixed, Settings } from 'lucide-react';
-import { FileDoc } from '../types';
+import { FileDoc, Language } from '../types';
+import { translations } from '../translations';
 
 interface SidebarProps {
   files: FileDoc[];
@@ -14,6 +15,7 @@ interface SidebarProps {
   onToggleFolder: (folderId: string) => void;
   onLocateFile: (file: FileDoc) => void;
   onOpenSettings: () => void;
+  language: Language;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
@@ -27,13 +29,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onMoveFile,
   onToggleFolder,
   onLocateFile,
-  onOpenSettings
+  onOpenSettings,
+  language
 }) => {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [tempName, setTempName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const t = translations[language].sidebar;
 
   useEffect(() => {
     if (renamingId && inputRef.current) {
@@ -172,7 +177,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <button
                             onClick={(e) => { e.stopPropagation(); onLocateFile(item); }}
                             className="p-1 hover:bg-[#444] rounded text-gray-400 hover:text-white"
-                            title="Reveal in Explorer"
+                            title={t.reveal}
                         >
                             <LocateFixed size={12} />
                         </button>
@@ -181,7 +186,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <button 
                         onClick={(e) => startRenaming(e, item)}
                         className="p-1 hover:bg-[#444] rounded text-gray-400 hover:text-white"
-                        title="Rename"
+                        title={t.rename}
                     >
                         <Edit2 size={12} />
                     </button>
@@ -207,7 +212,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <Search className="absolute left-2.5 top-2 text-gray-500 group-focus-within:text-[#4cc2ff]" size={14} />
           <input 
             type="text" 
-            placeholder="Search files..." 
+            placeholder={t.searchPlaceholder} 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-[#2d2d2d] text-sm text-white pl-8 pr-3 py-1.5 rounded-md border border-transparent focus:border-[#4cc2ff] focus:bg-[#1f1f1f] outline-none transition-all placeholder-gray-500"
@@ -219,26 +224,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button 
                 onClick={onCreateFile}
                 className="flex-1 flex items-center justify-center space-x-1 bg-[#2d2d2d] hover:bg-[#3d3d3d] text-white text-xs py-1.5 rounded transition-colors border border-[#333]"
-                title="New File"
+                title={t.newFile}
             >
                 <Plus size={14} />
-                <span>File</span>
+                <span>{language === 'zh' ? '文件' : 'File'}</span>
             </button>
             <button 
                 onClick={onCreateFolder}
                 className="flex-1 flex items-center justify-center space-x-1 bg-[#2d2d2d] hover:bg-[#3d3d3d] text-white text-xs py-1.5 rounded transition-colors border border-[#333]"
-                title="New Folder"
+                title={t.newFolder}
             >
                 <FolderPlus size={14} />
-                <span>Folder</span>
+                <span>{language === 'zh' ? '文件夹' : 'Folder'}</span>
             </button>
             <button 
                 onClick={onOpenFile}
                 className="flex-1 flex items-center justify-center space-x-1 bg-[#0078d4] hover:bg-[#006cc0] text-white text-xs py-1.5 rounded cursor-pointer transition-colors shadow-sm"
-                title="Open File (System Dialog)"
+                title={t.open}
             >
                 <FolderOpen size={14} />
-                <span>Open</span>
+                <span>{t.open}</span>
             </button>
         </div>
       </div>
@@ -249,18 +254,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
         onDrop={(e) => handleDrop(e, null)}
       >
         <div className="px-3 py-1 text-[10px] font-bold text-gray-500 uppercase tracking-widest flex justify-between">
-          <span>Project</span>
+          <span>{t.project}</span>
         </div>
         
         {files.length === 0 ? (
-          <div className="text-center mt-10 text-gray-500 text-sm italic px-4">
-            No files.<br/>Drag & drop or click Open.
+          <div className="text-center mt-10 text-gray-500 text-sm italic px-4 whitespace-pre-wrap">
+            {t.noFiles}
           </div>
         ) : searchQuery ? (
             // Search Results (Flat View)
             <div className="px-2">
                 {filteredItems.length === 0 ? (
-                    <div className="text-center mt-4 text-gray-500 text-sm italic">No matches</div>
+                    <div className="text-center mt-4 text-gray-500 text-sm italic">{t.noMatches}</div>
                 ) : (
                     filteredItems.map(item => (
                         <div 
@@ -284,11 +289,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Footer / Status Bar */}
       <div className="p-2 border-t border-[#333] bg-[#1d1d1d] text-xs text-gray-500 flex justify-between items-center">
-        <span className="pl-1">{files.filter(f => f.type === 'file').length} items</span>
+        <span className="pl-1">{files.filter(f => f.type === 'file').length} {t.items}</span>
         <button 
             onClick={onOpenSettings} 
             className="p-1.5 hover:bg-[#333] rounded text-gray-500 hover:text-white transition-colors"
-            title="Settings"
+            title={translations[language].settings.title}
         >
             <Settings size={14} />
         </button>

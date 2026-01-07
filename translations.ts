@@ -1,0 +1,127 @@
+
+import { Language } from "./types";
+
+export const translations = {
+  en: {
+    common: {
+      save: "Save",
+      download: "Download",
+      edit: "Edit",
+      preview: "Preview",
+      locate: "Locate",
+      close: "Close",
+      cancel: "Cancel",
+      untitled: "Untitled",
+    },
+    titleBar: {
+      title: "WinMD Explorer",
+      about: "About",
+    },
+    sidebar: {
+      searchPlaceholder: "Search files...",
+      newFile: "File",
+      newFolder: "Folder",
+      open: "Open",
+      project: "Project",
+      noFiles: "No files.\nDrag & drop or click Open.",
+      items: "items",
+      reveal: "Reveal in Explorer",
+      rename: "Rename",
+      noMatches: "No matches",
+      fileIsInMemory: "This file is stored in browser memory and not linked to a physical file yet. Save it first.",
+    },
+    settings: {
+      title: "Settings",
+      apiKeyLabel: "Google Gemini API Key",
+      apiKeyPlaceholder: "Enter your API Key here (starts with AIza...)",
+      apiKeyWarning: "Your API key is stored locally in your browser's Local Storage. It is never sent to any server other than Google's API endpoints.",
+      getKeyLink: "Get a free API Key from Google AI Studio",
+      saveSettings: "Save Settings",
+      languageLabel: "Language / 语言",
+    },
+    ai: {
+      title: "Gemini",
+      greeting: "Hi! I'm your Gemini AI assistant. I've read \"{fileName}\". Ask me to summarize it or explain any section.",
+      placeholder: "Ask about the file...",
+      thinking: "Gemini is thinking...",
+      summarize: "Summarize",
+      keyTakeaways: "Key Takeaways",
+      errorApiKey: "Please set your Gemini API Key in Settings (Gear icon).",
+      errorGeneric: "Sorry, I encountered an error. Please check your API key.",
+    },
+    help: {
+      title: "About WinMD Explorer",
+      whereSavedTitle: "Where are files saved?",
+      whereSavedDesc: "Files are automatically saved to your browser's Local Storage so they persist after a refresh. To save a file permanently to your computer, click the Save button in the toolbar.",
+      installTitle: "Install on Windows",
+      installDesc: "Install this app for a native Windows experience:",
+      installStep1: "Open this page in Edge or Chrome.",
+      installStep2: "Look for the Install icon (computer with down arrow) in the address bar.",
+      installStep3: "Click Install to add it to your Start Menu and Desktop.",
+    },
+    viewer: {
+      selectFile: "Select a file to preview content",
+    }
+  },
+  zh: {
+    common: {
+      save: "保存",
+      download: "下载",
+      edit: "编辑",
+      preview: "预览",
+      locate: "定位",
+      close: "关闭",
+      cancel: "取消",
+      untitled: "未命名",
+    },
+    titleBar: {
+      title: "WinMD 资源管理器",
+      about: "关于",
+    },
+    sidebar: {
+      searchPlaceholder: "搜索文件...",
+      newFile: "新建文件",
+      newFolder: "新建文件夹",
+      open: "打开",
+      project: "项目",
+      noFiles: "暂无文件。\n拖拽文件或点击“打开”。",
+      items: "项",
+      reveal: "在资源管理器中显示",
+      rename: "重命名",
+      noMatches: "无匹配项",
+      fileIsInMemory: "此文件仅存储在浏览器内存中，尚未关联到物理文件。请先保存。",
+    },
+    settings: {
+      title: "设置",
+      apiKeyLabel: "Google Gemini API 密钥",
+      apiKeyPlaceholder: "在此输入 API Key (以 AIza 开头...)",
+      apiKeyWarning: "您的 API 密钥仅存储在浏览器的本地存储中。除了 Google API 接口外，不会发送到任何服务器。",
+      getKeyLink: "从 Google AI Studio 获取免费 API Key",
+      saveSettings: "保存设置",
+      languageLabel: "语言 / Language",
+    },
+    ai: {
+      title: "Gemini 助手",
+      greeting: "你好！我是你的 Gemini AI 助手。我已经阅读了 \"{fileName}\"。你可以让我总结内容或解释任何部分。",
+      placeholder: "关于此文件提问...",
+      thinking: "Gemini 正在思考...",
+      summarize: "总结全文",
+      keyTakeaways: "关键要点",
+      errorApiKey: "请在设置（齿轮图标）中配置您的 Gemini API Key。",
+      errorGeneric: "抱歉，遇到错误。请检查您的 API Key。",
+    },
+    help: {
+      title: "关于 WinMD Explorer",
+      whereSavedTitle: "文件保存在哪里？",
+      whereSavedDesc: "文件会自动保存在浏览器的 本地存储 (Local Storage) 中，刷新后依然存在。要永久保存到电脑，请点击工具栏中的 保存 按钮。",
+      installTitle: "安装到 Windows",
+      installDesc: "安装此应用以获得原生 Windows 体验：",
+      installStep1: "在 Edge 或 Chrome 中打开此页面。",
+      installStep2: "在地址栏中找到 安装 图标（带有向下箭头的电脑）。",
+      installStep3: "点击 安装 将其添加到开始菜单和桌面。",
+    },
+    viewer: {
+      selectFile: "选择一个文件以预览内容",
+    }
+  }
+};
