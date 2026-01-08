@@ -9,6 +9,7 @@ WinMD Explorer is a modern, Windows 11-styled Markdown editor and file explorer 
 - **🪟 Windows 11 Aesthetic**: Designed to look and feel native on modern Windows systems.
 - **📑 Tabbed Interface**: Open and edit multiple files simultaneously.
 - **✨ AI-Powered**: Built-in integration with **Google Gemini 3.0** for document summarization, Q&A, and chat.
+- **↔️ Resizable Layout**: Fully adjustable sidebar and AI assistant panels to customize your workspace.
 - **📝 Professional Editor**: Powered by **Monaco Editor** (the core of VS Code) for a top-tier writing experience.
 - **👁️ Live Preview**: Instant Markdown rendering with support for:
   - **Mermaid Diagrams**: Create flowcharts and diagrams.

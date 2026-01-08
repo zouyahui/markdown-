@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Key, ExternalLink, Save, ShieldAlert, Globe, Cpu, Server, Database, Plug, Plus, Trash2, Command, Link, Activity, Loader2, CheckCircle2, AlertCircle, ChevronDown } from 'lucide-react';
+import { X, Key, ExternalLink, Save, ShieldAlert, Globe, Cpu, Server, Database, Plug, Plus, Trash2, Command, Link, Activity, Loader2, CheckCircle2, AlertCircle, ChevronDown, Wrench } from 'lucide-react';
 import { Language, AIProvider, MCPServerConfig } from '../types';
 import { translations } from '../translations';
 
@@ -54,7 +54,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
   const [localServers, setLocalServers] = useState<MCPServerConfig[]>(mcpServers);
   
   // State for connection testing
-  const [testResults, setTestResults] = useState<Record<string, { loading: boolean, success?: boolean, msg?: string }>>({});
+  const [testResults, setTestResults] = useState<Record<string, { loading: boolean, success?: boolean, msg?: string, tools?: string[] }>>({});
 
   // State for Preset Dropdown
   const [showPresets, setShowPresets] = useState(false);
@@ -159,7 +159,15 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
             const { ipcRenderer } = window.require('electron');
             const res = await ipcRenderer.invoke('mcp-test-connection', server);
             if (res.success) {
-                setTestResults(prev => ({ ...prev, [server.id]: { loading: false, success: true, msg: `OK: ${res.toolCount} tools found` } }));
+                setTestResults(prev => ({ 
+                    ...prev, 
+                    [server.id]: { 
+                        loading: false, 
+                        success: true, 
+                        msg: `OK: ${res.toolCount} tools found`,
+                        tools: res.toolNames 
+                    } 
+                }));
             } else {
                 setTestResults(prev => ({ ...prev, [server.id]: { loading: false, success: false, msg: res.error } }));
             }
@@ -495,9 +503,22 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                                         </button>
                                       </div>
                                       {testResults[server.id]?.msg && (
-                                        <div className={`text-[10px] mt-1 flex items-center space-x-1 ${testResults[server.id].success ? 'text-green-500' : 'text-red-400'}`}>
-                                            {testResults[server.id].success ? <CheckCircle2 size={10} /> : <AlertCircle size={10} />}
-                                            <span className="truncate" title={testResults[server.id].msg}>{testResults[server.id].msg}</span>
+                                        <div className="mt-2 space-y-1">
+                                            <div className={`text-[10px] flex items-center space-x-1 ${testResults[server.id].success ? 'text-green-500' : 'text-red-400'}`}>
+                                                {testResults[server.id].success ? <CheckCircle2 size={10} /> : <AlertCircle size={10} />}
+                                                <span className="truncate" title={testResults[server.id].msg}>{testResults[server.id].msg}</span>
+                                            </div>
+                                            {/* List Tools found */}
+                                            {testResults[server.id].tools && (
+                                                <div className="bg-[#252525] rounded p-2 text-[10px] text-gray-400 max-h-24 overflow-y-auto border border-[#333]">
+                                                    <div className="font-semibold text-gray-500 mb-1 flex items-center gap-1"><Wrench size={8} /> Tools:</div>
+                                                    <ul className="list-disc list-inside">
+                                                        {testResults[server.id].tools!.map((tname, idx) => (
+                                                            <li key={idx} className="truncate">{tname}</li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
                                         </div>
                                       )}
                                   </div>

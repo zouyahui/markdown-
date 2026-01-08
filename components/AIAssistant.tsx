@@ -18,6 +18,9 @@ interface AIAssistantProps {
   localBaseUrl: string;
   localModelName: string;
   localApiKey: string;
+  // New props for resizing
+  width: number;
+  onResizeStart: (e: React.MouseEvent) => void;
 }
 
 export const AIAssistant: React.FC<AIAssistantProps> = ({ 
@@ -33,7 +36,9 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
     aiProvider,
     localBaseUrl,
     localModelName,
-    localApiKey
+    localApiKey,
+    width,
+    onResizeStart
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>(chatHistory);
   const [input, setInput] = useState('');
@@ -143,6 +148,22 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
 
   const handleCopy = async (text: string, id: string) => {
     try {
+        // Attempt to use Electron's native clipboard first for reliability
+        // @ts-ignore
+        if (typeof window !== 'undefined' && window.require) {
+            try {
+                // @ts-ignore
+                const { clipboard } = window.require('electron');
+                clipboard.writeText(text);
+                setCopiedId(id);
+                setTimeout(() => setCopiedId(null), 2000);
+                return;
+            } catch (e) {
+                console.warn("Electron clipboard failed, falling back to Web API", e);
+            }
+        }
+
+        // Fallback to Web API
         await navigator.clipboard.writeText(text);
         setCopiedId(id);
         setTimeout(() => setCopiedId(null), 2000);
@@ -212,21 +233,30 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="w-80 border-l border-[#333] bg-[#202020] flex flex-col h-full absolute right-0 top-0 shadow-2xl z-10 transition-transform duration-300">
+    <div 
+        className="border-l border-[#333] bg-[#202020] flex flex-col h-full absolute right-0 top-0 shadow-2xl z-10 transition-none"
+        style={{ width: width }}
+    >
+      {/* Resize Handle */}
+      <div 
+        className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-[#0078d4] z-20 hover:opacity-100 opacity-0 transition-opacity"
+        onMouseDown={onResizeStart}
+      />
+
       {/* Header */}
-      <div className="h-12 border-b border-[#333] flex items-center justify-between px-4 bg-[#252525]">
+      <div className="h-12 border-b border-[#333] flex items-center justify-between px-4 bg-[#252525] flex-shrink-0">
         <div className="flex items-center space-x-2 text-[#4cc2ff]">
           <Sparkles size={16} />
-          <span className="font-semibold text-sm">{t.title}</span>
+          <span className="font-semibold text-sm truncate">{t.title}</span>
         </div>
 
         {/* Model Selector - Only show for Gemini */}
         {aiProvider === 'gemini' ? (
-            <div className="relative group">
+            <div className="relative group ml-auto mr-2">
                 <select 
                     value={selectedModel}
                     onChange={(e) => setSelectedModel(e.target.value)}
-                    className="appearance-none bg-[#333] hover:bg-[#3d3d3d] text-xs text-gray-200 py-1 pl-2 pr-6 rounded border border-[#444] outline-none cursor-pointer transition-colors w-32 truncate"
+                    className="appearance-none bg-[#333] hover:bg-[#3d3d3d] text-xs text-gray-200 py-1 pl-2 pr-6 rounded border border-[#444] outline-none cursor-pointer transition-colors w-28 truncate"
                 >
                     {AVAILABLE_MODELS.map(model => (
                         <option key={model.id} value={model.id}>{model.name}</option>
@@ -235,12 +265,12 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
                 <ChevronDown size={12} className="absolute right-2 top-1.5 text-gray-400 pointer-events-none" />
             </div>
         ) : (
-            <div className="text-xs text-gray-400 bg-[#333] px-2 py-1 rounded truncate max-w-[120px]" title={localModelName}>
+            <div className="text-xs text-gray-400 bg-[#333] px-2 py-1 rounded truncate max-w-[100px] ml-auto mr-2" title={localModelName}>
                 {localModelName}
             </div>
         )}
 
-        <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors ml-2">
+        <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
           <X size={16} />
         </button>
       </div>
@@ -255,12 +285,12 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
             </div>
             
             {/* Message Bubble */}
-            <div className={`relative max-w-[80%] rounded-lg p-3 text-sm leading-relaxed whitespace-pre-wrap ${
+            <div className={`relative max-w-[85%] rounded-lg p-3 text-sm leading-relaxed whitespace-pre-wrap ${
               msg.role === MessageRole.User 
                 ? 'bg-[#333] text-white' 
                 : 'bg-[#2b2b2b] text-gray-200 border border-[#333]'
             }`}>
-              <div className="pr-2">{msg.text}</div>
+              <div className="pr-2 break-words">{msg.text}</div>
               
               {/* Copy Button (Visible on Hover) */}
               <button 
@@ -285,7 +315,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
       </div>
 
       {/* Quick Actions */}
-      <div className="px-4 py-2 border-t border-[#333] bg-[#252525] flex space-x-2 overflow-x-auto no-scrollbar">
+      <div className="px-4 py-2 border-t border-[#333] bg-[#252525] flex space-x-2 overflow-x-auto no-scrollbar flex-shrink-0">
         <button 
             onClick={handleSummarize}
             disabled={isLoading}
@@ -306,7 +336,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
 
       {/* Input Area with Drop Zone */}
       <div 
-        className={`p-4 border-t border-[#333] bg-[#202020] relative transition-colors ${isDragOver ? 'bg-[#2a2a2a]' : ''}`}
+        className={`p-4 border-t border-[#333] bg-[#202020] relative transition-colors flex-shrink-0 ${isDragOver ? 'bg-[#2a2a2a]' : ''}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}

@@ -41,6 +41,15 @@ const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isSplitView, setIsSplitView] = useState(false);
+
+  // Resize State
+  const [sidebarWidth, setSidebarWidth] = useState(256);
+  const [aiWidth, setAiWidth] = useState(320);
+  const isResizingSidebar = useRef(false);
+  const isResizingAi = useRef(false);
+  // Store start X to calculate delta if needed, but absolute tracking is fine
+  const startX = useRef(0);
+  const startWidth = useRef(0);
   
   // Settings State
   const [apiKey, setApiKey] = useState('');
@@ -56,6 +65,56 @@ const App: React.FC = () => {
 
   const activeFile = files.find(f => f.id === activeFileId);
   const t = translations[language]; // Current translation object
+
+  // --- Resize Logic ---
+  const handleSidebarResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizingSidebar.current = true;
+    document.body.style.cursor = 'col-resize';
+  };
+
+  const handleAiResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizingAi.current = true;
+    // Capture initial width and mouse position to calculate delta
+    startX.current = e.clientX;
+    startWidth.current = aiWidth;
+    document.body.style.cursor = 'col-resize';
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+        if (isResizingSidebar.current) {
+            // Sidebar is left aligned, width is simply mouse X
+            // Add constraints: Min 150px, Max 50% of window
+            const newWidth = Math.max(150, Math.min(window.innerWidth * 0.5, e.clientX));
+            setSidebarWidth(newWidth);
+        }
+        if (isResizingAi.current) {
+            // AI is right aligned (absolute) inside a relative container
+            // Dragging LEFT increases width
+            const deltaX = startX.current - e.clientX;
+            const newWidth = Math.max(250, Math.min(window.innerWidth * 0.6, startWidth.current + deltaX));
+            setAiWidth(newWidth);
+        }
+    };
+
+    const handleMouseUp = () => {
+        if (isResizingSidebar.current || isResizingAi.current) {
+            isResizingSidebar.current = false;
+            isResizingAi.current = false;
+            document.body.style.cursor = 'default';
+        }
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []); // Dependencies are refs, safe to be empty
 
   // --- Sync Scrolling Refs ---
   const editorInstanceRef = useRef<any>(null); // Monaco instance
@@ -352,14 +411,9 @@ graph TD
   };
 
   const handleCloseTab = (id: string) => {
-    // Check if file is unsaved before closing? 
-    // For now, simple closing (files persist in 'files' state anyway, just closed from view)
-    // If it was a new file (unsaved) and never saved to disk, it stays in Sidebar.
-    
     const newOpenIds = openFileIds.filter(fid => fid !== id);
     setOpenFileIds(newOpenIds);
     
-    // If we closed the active tab, switch to another one
     if (activeFileId === id) {
         if (newOpenIds.length > 0) {
             const nextId = newOpenIds[newOpenIds.length - 1];
@@ -373,7 +427,6 @@ graph TD
             setLastFocusedId(null);
         }
     } else {
-        // If we closed a selected tab (that wasn't active), remove it from selection
         if (selectedFileIds.includes(id)) {
             setSelectedFileIds(prev => prev.filter(sid => sid !== id));
         }
@@ -383,15 +436,12 @@ graph TD
   const handleTabClick = (id: string, modifiers: { ctrl: boolean, shift: boolean }) => {
     const { ctrl, shift } = modifiers;
 
-    // 1. Always activate the clicked tab
     setActiveFileId(id);
     ensureVisible(id);
     
-    // 2. Calculate new selection
     let newSelection: string[] = [];
     
     if (shift && lastFocusedId && openFileIds.includes(lastFocusedId)) {
-        // Range selection based on Tab order
         const startIdx = openFileIds.indexOf(lastFocusedId);
         const endIdx = openFileIds.indexOf(id);
         
@@ -401,7 +451,6 @@ graph TD
              const range = openFileIds.slice(min, max + 1);
              
              if (ctrl) {
-                 // Add to existing
                  newSelection = Array.from(new Set([...selectedFileIds, ...range]));
              } else {
                  newSelection = range;
@@ -410,10 +459,8 @@ graph TD
              newSelection = [id];
         }
     } else if (ctrl) {
-        // Add to selection (ensure the active one stays selected)
         newSelection = Array.from(new Set([...selectedFileIds, id]));
     } else {
-        // Simple click
         newSelection = [id];
     }
     
@@ -423,9 +470,7 @@ graph TD
 
   // --- Sidebar Selection & Multi-select ---
   
-  // Calculate visible files linearly to support Shift+Click range selection
   const getVisibleFileIds = useCallback(() => {
-    // If searching, return filtered list
     if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
         return files
@@ -433,7 +478,6 @@ graph TD
             .map(f => f.id);
     }
 
-    // If tree view, traverse recursively based on expansion
     const visibleIds: string[] = [];
     const traverse = (parentId: string | null) => {
         const children = files
@@ -457,10 +501,8 @@ graph TD
   const handleSidebarItemClick = (id: string, modifiers: { ctrl: boolean, shift: boolean }) => {
     const { ctrl, shift } = modifiers;
     
-    // Ensure item is visible in tree (useful if selecting from search results)
     ensureVisible(id);
 
-    // 1. Handle Selection State
     let newSelection: string[] = [];
     
     if (shift && lastFocusedId) {
@@ -474,43 +516,33 @@ graph TD
              const range = visibleIds.slice(min, max + 1);
              
              if (ctrl) {
-                 // Add range to existing, ensuring uniqueness
                  const newSet = new Set([...selectedFileIds, ...range]);
                  newSelection = Array.from(newSet);
              } else {
                  newSelection = range;
              }
         } else {
-             // Fallback if anchor is gone
              newSelection = [id];
              setLastFocusedId(id);
         }
     } else if (ctrl) {
-        // Toggle selection
         if (selectedFileIds.includes(id)) {
             newSelection = selectedFileIds.filter(sid => sid !== id);
         } else {
             newSelection = [...selectedFileIds, id];
         }
-        setLastFocusedId(id); // Update anchor
+        setLastFocusedId(id);
     } else {
-        // Simple click
         newSelection = [id];
         setLastFocusedId(id);
     }
     
-    // Safety: ensure at least one selected if user clicked (except maybe ctrl click toggling last off)
-    // Actually, allowing empty selection via Ctrl click is standard. 
-    // But if simple click, ensure it selects.
     if (!ctrl && !shift && newSelection.length === 0) {
         newSelection = [id];
     }
 
     setSelectedFileIds(newSelection);
     
-    // 2. Handle Opening (Files Only)
-    // Only open tabs on simple single click. 
-    // Multi-select operations usually are for organizing, not opening 10 tabs at once.
     if (!ctrl && !shift) {
         const item = files.find(f => f.id === id);
         if (item && item.type === 'file') {
@@ -528,7 +560,6 @@ graph TD
     const ipc = getIpcRenderer();
     if (!ipc) return;
 
-    // Check if already open
     const existingFile = files.find(f => f.path === filePath);
     if (existingFile) {
         handleFileActivate(existingFile.id);
@@ -570,7 +601,6 @@ graph TD
                       await loadFileFromIpc(filePath);
                   }
               }
-              // Even if user cancels dialog, we consider IPC call successful in initiating
               ipcSuccess = true;
           } catch (e) {
               console.error("Electron open dialog failed", e);
@@ -578,7 +608,6 @@ graph TD
           }
       }
 
-      // Fallback: Trigger hidden browser file input if IPC is not available or failed
       if (!ipcSuccess && fileInputRef.current) {
           fileInputRef.current.click();
       }
@@ -590,7 +619,6 @@ graph TD
             const file = e.target.files[i];
             const text = await file.text();
             
-            // Basic deduplication by name for browser files
             const existing = files.find(f => f.name === file.name && !f.path);
             if (existing) {
                 handleFileActivate(existing.id);
@@ -611,29 +639,24 @@ graph TD
             handleFileActivate(newFile.id);
         }
     }
-    // Reset value
     e.target.value = ''; 
   };
 
   const saveFileToDisk = async (file: FileDoc) => {
       const ipc = getIpcRenderer();
 
-      // Electron Save
       if (ipc) {
           try {
               let savePath = file.path;
 
-              // If no path, ask for location (Save As)
               if (!savePath) {
                   const resultPath: string = await ipc.invoke('save-file-dialog', file.name);
-                  if (!resultPath) return; // User cancelled
+                  if (!resultPath) return;
                   savePath = resultPath;
               }
 
-              // Write file
               await ipc.invoke('write-file', savePath, file.content);
 
-              // Update file state with new path and name, mark as saved
               const newName = savePath.replace(/^.*[\\/]/, '');
               setFiles(prev => prev.map(f => 
                   f.id === file.id ? { ...f, path: savePath, name: newName, lastModified: Date.now(), isUnsaved: false } : f
@@ -642,11 +665,9 @@ graph TD
 
           } catch (e) {
               console.error("Failed to save file via IPC", e);
-              // Fallthrough to browser download
           }
       }
 
-      // Fallback: Browser Download
       const blob = new Blob([file.content], { type: 'text/markdown' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -657,17 +678,15 @@ graph TD
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       
-      // Mark as saved for browser too
       setFiles(prev => prev.map(f => 
         f.id === file.id ? { ...f, lastModified: Date.now(), isUnsaved: false } : f
       ));
   };
 
-  // Keyboard Shortcuts (Ctrl+S)
   useEffect(() => {
       const handleKeyDown = (e: KeyboardEvent) => {
           if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-              e.preventDefault(); // Prevent browser save dialog
+              e.preventDefault();
               if (activeFileId) {
                   const currentFile = files.find(f => f.id === activeFileId);
                   if (currentFile) {
@@ -689,10 +708,10 @@ graph TD
         name: `${t.common.untitled}-${files.filter(f => f.type === 'file').length + 1}.md`,
         content: '# New Document\n\nStart typing...',
         type: 'file',
-        parentId: null, // Create in root by default
+        parentId: null,
         lastModified: Date.now(),
         chatHistory: [],
-        isUnsaved: true // New files are dirty until saved
+        isUnsaved: true
     };
     setFiles(prev => [...prev, newFile]);
     handleFileActivate(newFile.id);
@@ -740,14 +759,12 @@ graph TD
     ));
   };
 
-  // Supports batch moving of files
   const handleMoveFile = (fileIds: string[], targetFolderId: string | null) => {
     const movesToProcess: string[] = [];
 
     for (const fileId of fileIds) {
         if (fileId === targetFolderId) continue;
 
-        // Cycle detection: Prevent moving a folder into itself or its children
         let isCycle = false;
         let currentId = targetFolderId;
         while (currentId) {
@@ -770,7 +787,6 @@ graph TD
         if (movesToProcess.includes(f.id)) {
             return { ...f, parentId: targetFolderId };
         }
-        // Auto-expand target folder
         if (targetFolderId && f.id === targetFolderId) {
             return { ...f, isExpanded: true };
         }
@@ -804,7 +820,6 @@ graph TD
   return (
     <div className="flex flex-col h-screen w-screen bg-black text-white overflow-hidden border border-[#333] shadow-2xl rounded-none sm:rounded-lg sm:my-4 sm:mx-4 sm:h-[calc(100vh-2rem)] sm:w-[calc(100vw-2rem)]">
       
-      {/* Fallback File Input - Hidden with style to ensure it is invisible even if CSS fails */}
       <input 
           type="file" 
           multiple 
@@ -837,6 +852,8 @@ graph TD
                 language={language}
                 searchQuery={searchQuery}
                 onSearchChange={setSearchQuery}
+                width={sidebarWidth}
+                onResizeStart={handleSidebarResizeStart}
             />
         )}
         
@@ -968,7 +985,7 @@ graph TD
                         <MarkdownEditor 
                                 content={activeFile.content} 
                                 onChange={handleContentChange}
-                                onScroll={handleEditorScroll} // Even in single view, we update ref for switching
+                                onScroll={handleEditorScroll} 
                                 editorRefProp={editorInstanceRef}
                         />
                     ) : (
@@ -985,7 +1002,7 @@ graph TD
                 )
              )}
              
-             {activeFile && (
+             {activeFile && isAiOpen && (
                 <AIAssistant 
                     key={activeFile.id}
                     isOpen={isAiOpen} 
@@ -997,11 +1014,12 @@ graph TD
                     apiKey={apiKey}
                     language={language}
                     allFiles={files}
-                    // New Props for AI Provider
                     aiProvider={aiProvider}
                     localBaseUrl={localBaseUrl}
                     localModelName={localModelName}
-                    localApiKey={localApiKey} // Added Prop
+                    localApiKey={localApiKey}
+                    width={aiWidth}
+                    onResizeStart={handleAiResizeStart}
                 />
              )}
            </div>
@@ -1021,16 +1039,14 @@ graph TD
         onSaveApiKey={handleSaveApiKey}
         language={language}
         onLanguageChange={handleLanguageChange}
-        // New Props for AI Provider
         aiProvider={aiProvider}
         onAiProviderChange={handleAiProviderChange}
         localBaseUrl={localBaseUrl}
         onLocalBaseUrlChange={handleLocalBaseUrlChange}
         localModelName={localModelName}
         onLocalModelNameChange={handleLocalModelNameChange}
-        localApiKey={localApiKey} // Added Prop
-        onLocalApiKeyChange={handleLocalApiKeyChange} // Added Prop
-        // MCP Props
+        localApiKey={localApiKey} 
+        onLocalApiKeyChange={handleLocalApiKeyChange}
         mcpServers={mcpServers}
         onMcpServersChange={handleMcpServersChange}
       />

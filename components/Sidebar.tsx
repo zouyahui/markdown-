@@ -6,19 +6,22 @@ import { translations } from '../translations';
 interface SidebarProps {
   files: FileDoc[];
   activeFileId: string | null;
-  selectedFileIds: string[]; // Added
-  onSelect: (id: string, modifiers: { ctrl: boolean, shift: boolean }) => void; // Changed from onSelectFile
+  selectedFileIds: string[];
+  onSelect: (id: string, modifiers: { ctrl: boolean, shift: boolean }) => void;
   onOpenFile: () => void;
   onCreateFile: () => void;
   onCreateFolder: () => void;
   onRenameFile: (id: string, newName: string) => void;
-  onMoveFile: (fileIds: string[], targetFolderId: string | null) => void; // Updated to accept array
+  onMoveFile: (fileIds: string[], targetFolderId: string | null) => void;
   onToggleFolder: (folderId: string) => void;
   onLocateFile: (file: FileDoc) => void;
   onOpenSettings: () => void;
   language: Language;
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  // New props for resizing
+  width: number;
+  onResizeStart: (e: React.MouseEvent) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
@@ -36,7 +39,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenSettings,
   language,
   searchQuery,
-  onSearchChange
+  onSearchChange,
+  width,
+  onResizeStart
 }) => {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [tempName, setTempName] = useState('');
@@ -86,27 +91,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
     e.stopPropagation();
     
     // Determine which IDs to drag.
-    // If the user drags an item that is part of the selection, drag all selected items.
-    // If the user drags an item NOT in the selection, drag only that item.
     let idsToDrag = [id];
     if (selectedFileIds.includes(id)) {
         idsToDrag = selectedFileIds;
     }
 
-    // Use JSON string to pass array of IDs
     e.dataTransfer.setData('text/plain', JSON.stringify(idsToDrag));
     e.dataTransfer.effectAllowed = 'move';
   };
 
   const handleDragOver = (e: React.DragEvent, folderId: string | null) => {
     e.preventDefault();
-    e.stopPropagation(); // Stop bubbling to prevent parent container from resetting target to null
+    e.stopPropagation(); 
     setDragOverFolderId(folderId);
   };
 
   const handleDrop = (e: React.DragEvent, targetFolderId: string | null) => {
     e.preventDefault();
-    e.stopPropagation(); // Stop bubbling
+    e.stopPropagation();
     setDragOverFolderId(null);
     
     const data = e.dataTransfer.getData('text/plain');
@@ -116,7 +118,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             const ids = Array.isArray(parsed) ? parsed : [data];
             onMoveFile(ids, targetFolderId);
         } catch (e) {
-            // Fallback for simple string data (legacy support)
             onMoveFile([data], targetFolderId);
         }
     }
@@ -126,7 +127,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const items = files
         .filter(f => f.parentId === parentId)
         .sort((a, b) => {
-            // Folders first, then files
             if (a.type === b.type) return a.name.localeCompare(b.name);
             return a.type === 'folder' ? -1 : 1;
         });
@@ -136,7 +136,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       const isRenaming = renamingId === item.id;
       const isSelected = selectedFileIds.includes(item.id);
       
-      // Calculate padding based on depth
       const paddingLeft = `${depth * 12 + 12}px`;
       const dropTargetId = isFolder ? item.id : item.parentId;
       const isDragTarget = isFolder && dragOverFolderId === item.id;
@@ -156,8 +155,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onDragOver={(e) => handleDragOver(e, dropTargetId)}
                 onDrop={(e) => handleDrop(e, dropTargetId)}
             >
-                {/* Arrow for folders - Click toggles expansion without changing selection logic necessarily, 
-                    but here we prevent the row click from firing */}
                 <div 
                     className="w-4 h-4 flex items-center justify-center mr-1 text-gray-500 hover:text-white"
                     onClick={(e) => { e.stopPropagation(); if(isFolder) onToggleFolder(item.id); }}
@@ -167,7 +164,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     )}
                 </div>
 
-                {/* Icon */}
                 <div className="mr-2 text-gray-400">
                     {isFolder ? (
                         item.isExpanded ? <FolderOpen size={16} className="text-[#e8b339]" /> : <Folder size={16} className="text-[#e8b339]" />
@@ -176,7 +172,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     )}
                 </div>
 
-                {/* Name / Rename Input */}
                 <div className="flex-1 min-w-0">
                     {isRenaming ? (
                         <input
@@ -197,9 +192,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     )}
                 </div>
 
-                {/* Hover Actions */}
                 <div className="hidden group-hover:flex items-center space-x-1 ml-2">
-                    {/* Locate (Reveal in Explorer) */}
                     {item.path && (
                         <button
                             onClick={(e) => { e.stopPropagation(); onLocateFile(item); }}
@@ -209,7 +202,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             <LocateFixed size={12} />
                         </button>
                     )}
-                    {/* Rename */}
                     <button 
                         onClick={(e) => startRenaming(e, item)}
                         className="p-1 hover:bg-[#444] rounded text-gray-400 hover:text-white"
@@ -219,8 +211,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </button>
                 </div>
             </div>
-            
-            {/* Recursive render for folder children */}
             {isFolder && item.isExpanded && renderTree(item.id, depth + 1)}
         </React.Fragment>
       );
@@ -232,9 +222,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   );
 
   return (
-    <div className="w-64 bg-[#202020] border-r border-[#2b2b2b] flex flex-col h-full">
+    <div 
+        className="bg-[#202020] border-r border-[#2b2b2b] flex flex-col h-full relative flex-shrink-0"
+        style={{ width: width }}
+    >
       <div className="p-3 space-y-3">
-        {/* Search / Filter */}
         <div className="relative group">
           <Search className="absolute left-2.5 top-2 text-gray-500 group-focus-within:text-[#4cc2ff]" size={14} />
           <input 
@@ -246,7 +238,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           />
         </div>
 
-        {/* Actions */}
         <div className="flex space-x-1">
             <button 
                 onClick={onCreateFile}
@@ -277,7 +268,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       <div 
         className="flex-1 overflow-y-auto pb-2 space-y-0.5 custom-scrollbar transition-colors"
-        onDragOver={(e) => handleDragOver(e, null)} // Root drop zone
+        onDragOver={(e) => handleDragOver(e, null)} 
         onDrop={(e) => handleDrop(e, null)}
       >
         <div className="px-3 py-1 text-[10px] font-bold text-gray-500 uppercase tracking-widest flex justify-between">
@@ -289,7 +280,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {t.noFiles}
           </div>
         ) : searchQuery ? (
-            // Search Results (Flat View)
             <div className="px-2">
                 {filteredItems.length === 0 ? (
                     <div className="text-center mt-4 text-gray-500 text-sm italic">{t.noMatches}</div>
@@ -313,14 +303,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 )}
             </div>
         ) : (
-            // Tree View
             <div className="min-h-[100px] pt-1">
                 {renderTree(null)}
             </div>
         )}
       </div>
 
-      {/* Footer / Status Bar */}
       <div className="p-2 border-t border-[#333] bg-[#1d1d1d] text-xs text-gray-500 flex justify-between items-center">
         <span className="pl-1">{files.filter(f => f.type === 'file').length} {t.items}</span>
         <button 
@@ -331,6 +319,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <Settings size={14} />
         </button>
       </div>
+
+      {/* Resize Handle */}
+      <div 
+        className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-[#0078d4] z-20 hover:opacity-100 opacity-0 transition-opacity"
+        onMouseDown={onResizeStart}
+      />
     </div>
   );
 };

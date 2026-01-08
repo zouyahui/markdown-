@@ -212,7 +212,7 @@ const createWindow = async () => {
   });
 
   // --- Local AI Proxy (Avoids CORS in Renderer) ---
-  ipcMain.handle('chat-local-ai', async (event, { baseUrl, modelName, messages, apiKey }) => {
+  ipcMain.handle('chat-local-ai', async (event, { baseUrl, modelName, messages, apiKey, tools }) => {
     // 1. Prepare logic to fetch from a specific URL
     const doFetch = async (targetUrl) => {
         console.log(`[Local AI] Requesting: ${targetUrl}`);
@@ -223,14 +223,22 @@ const createWindow = async () => {
             headers['Authorization'] = `Bearer ${apiKey}`;
         }
 
+        const payload = {
+            model: modelName,
+            messages: messages,
+            stream: false
+        };
+
+        // Inject tools if present
+        if (tools && Array.isArray(tools) && tools.length > 0) {
+            payload.tools = tools;
+            payload.tool_choice = "auto";
+        }
+
         const response = await fetch(targetUrl, {
             method: 'POST',
             headers: headers,
-            body: JSON.stringify({
-                model: modelName,
-                messages: messages,
-                stream: false
-            })
+            body: JSON.stringify(payload)
         });
 
         if (!response.ok) {
@@ -238,7 +246,8 @@ const createWindow = async () => {
         }
 
         const data = await response.json();
-        return data.choices?.[0]?.message?.content || "";
+        // Return the whole message object (content + tool_calls)
+        return data.choices?.[0]?.message || { content: "" }; 
     };
 
     // 2. Clean up base URL
@@ -356,7 +365,11 @@ const createWindow = async () => {
         const tools = await client.listTools();
         await client.close();
         
-        return { success: true, toolCount: tools.tools.length };
+        return { 
+            success: true, 
+            toolCount: tools.tools.length, 
+            toolNames: tools.tools.map(t => t.name) // Return names for UI
+        };
 
     } catch (error) {
         console.error("MCP Test Failed:", error);
