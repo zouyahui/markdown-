@@ -212,32 +212,56 @@ const createWindow = async () => {
   });
 
   // --- Local AI Proxy (Avoids CORS in Renderer) ---
-  ipcMain.handle('chat-local-ai', async (event, { baseUrl, modelName, messages }) => {
+  ipcMain.handle('chat-local-ai', async (event, { baseUrl, modelName, messages, apiKey }) => {
+    // 1. Prepare logic to fetch from a specific URL
+    const doFetch = async (targetUrl) => {
+        console.log(`[Local AI] Requesting: ${targetUrl}`);
+        const headers = { 'Content-Type': 'application/json' };
+        
+        // Add Authorization header if apiKey is present
+        if (apiKey) {
+            headers['Authorization'] = `Bearer ${apiKey}`;
+        }
+
+        const response = await fetch(targetUrl, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify({
+                model: modelName,
+                messages: messages,
+                stream: false
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Local AI Error: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        return data.choices?.[0]?.message?.content || "";
+    };
+
+    // 2. Clean up base URL
+    // Remove trailing slashes and potential trailing /chat/completions if user added it manually
+    let cleanBase = baseUrl.replace(/\/+$/, '').replace(/\/chat\/completions$/, '');
+    
+    // 3. Construct default URL
+    const defaultUrl = `${cleanBase}/chat/completions`;
+
     try {
-      // Ensure the URL is correct (e.g., http://localhost:11434/v1/chat/completions)
-      const url = `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
-      
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: modelName,
-          messages: messages,
-          stream: false
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`Local AI Error: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      return data.choices?.[0]?.message?.content || "";
+        return await doFetch(defaultUrl);
     } catch (error) {
-      console.error("Main Process Local AI Request Failed:", error);
-      throw error; 
+        // 4. Smart Retry Logic for 404s
+        // If we get a 404 and the URL didn't have /v1, try adding it.
+        // This fixes common config errors with Ollama (localhost:11434 vs localhost:11434/v1)
+        if (error.message.includes('404') && !cleanBase.includes('/v1')) {
+            console.log("[Local AI] 404 encountered. Retrying with /v1 prefix...");
+            const v1Url = `${cleanBase}/v1/chat/completions`;
+            return await doFetch(v1Url);
+        }
+        
+        console.error("Main Process Local AI Request Failed:", error);
+        throw error; 
     }
   });
 

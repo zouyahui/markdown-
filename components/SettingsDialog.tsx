@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Key, ExternalLink, Save, ShieldAlert, Globe, Cpu, Server, Database, Plug, Plus, Trash2, Command, Link, Activity, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { X, Key, ExternalLink, Save, ShieldAlert, Globe, Cpu, Server, Database, Plug, Plus, Trash2, Command, Link, Activity, Loader2, CheckCircle2, AlertCircle, ChevronDown } from 'lucide-react';
 import { Language, AIProvider, MCPServerConfig } from '../types';
 import { translations } from '../translations';
 
@@ -17,6 +17,8 @@ interface SettingsDialogProps {
   onLocalBaseUrlChange: (url: string) => void;
   localModelName: string;
   onLocalModelNameChange: (name: string) => void;
+  localApiKey: string;
+  onLocalApiKeyChange: (key: string) => void;
   // MCP Props
   mcpServers: MCPServerConfig[];
   onMcpServersChange: (servers: MCPServerConfig[]) => void;
@@ -37,6 +39,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
   onLocalBaseUrlChange,
   localModelName,
   onLocalModelNameChange,
+  localApiKey,
+  onLocalApiKeyChange,
   mcpServers,
   onMcpServersChange
 }) => {
@@ -44,12 +48,16 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
   const [inputKey, setInputKey] = useState(apiKey);
   const [inputBaseUrl, setInputBaseUrl] = useState(localBaseUrl);
   const [inputModelName, setInputModelName] = useState(localModelName);
+  const [inputLocalKey, setInputLocalKey] = useState(localApiKey);
   
   // Local state for managing MCP servers list edits
   const [localServers, setLocalServers] = useState<MCPServerConfig[]>(mcpServers);
   
   // State for connection testing
   const [testResults, setTestResults] = useState<Record<string, { loading: boolean, success?: boolean, msg?: string }>>({});
+
+  // State for Preset Dropdown
+  const [showPresets, setShowPresets] = useState(false);
 
   const t = translations[language].settings;
   const commonT = translations[language].common;
@@ -58,13 +66,15 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
     setInputKey(apiKey);
     setInputBaseUrl(localBaseUrl);
     setInputModelName(localModelName);
+    setInputLocalKey(localApiKey);
     setLocalServers(mcpServers);
-  }, [apiKey, localBaseUrl, localModelName, mcpServers, isOpen]);
+  }, [apiKey, localBaseUrl, localModelName, localApiKey, mcpServers, isOpen]);
 
   const handleSave = () => {
-    onSaveApiKey(inputKey);
-    onLocalBaseUrlChange(inputBaseUrl);
-    onLocalModelNameChange(inputModelName);
+    onSaveApiKey(inputKey.trim()); // Trim whitespace
+    onLocalBaseUrlChange(inputBaseUrl.trim());
+    onLocalModelNameChange(inputModelName.trim());
+    onLocalApiKeyChange(inputLocalKey.trim()); // Trim whitespace
     onMcpServersChange(localServers);
     onClose();
   };
@@ -112,23 +122,27 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
           args: []
       };
 
+      // Note: We add '-q' to npx to suppress "Need to install..." messages to stdout,
+      // which break the JSON-RPC protocol over Stdio.
+
       switch (presetName) {
           case 'Filesystem':
               // Use C:\ on Windows, / on Mac/Linux as a default valid path
               const defaultPath = isWindows ? 'C:\\' : '/';
-              config.args = ['-y', '@modelcontextprotocol/server-filesystem', defaultPath];
+              config.args = ['-y', '-q', '@modelcontextprotocol/server-filesystem', defaultPath];
               break;
-          case 'Git':
-              config.args = ['-y', '@modelcontextprotocol/server-git'];
+          case 'GitHub':
+              config.args = ['-y', '-q', '@modelcontextprotocol/server-github'];
+              config.env = { 'GITHUB_PERSONAL_ACCESS_TOKEN': 'your-token-here' };
               break;
           case 'PostgreSQL':
-              config.args = ['-y', '@modelcontextprotocol/server-postgres', 'postgresql://localhost/mydb'];
+              config.args = ['-y', '-q', '@modelcontextprotocol/server-postgres', 'postgresql://localhost/mydb'];
               break;
           case 'Google Drive':
-              config.args = ['-y', '@modelcontextprotocol/server-google-drive'];
+              config.args = ['-y', '-q', '@modelcontextprotocol/server-google-drive'];
               break;
           case 'Brave Search':
-              config.args = ['-y', '@modelcontextprotocol/server-brave-search'];
+              config.args = ['-y', '-q', '@modelcontextprotocol/server-brave-search'];
               config.env = { 'BRAVE_API_KEY': 'your-key-here' };
               break;
       }
@@ -295,6 +309,20 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                                 className="w-full bg-[#2d2d2d] border border-[#444] rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-[#e8b339] transition-colors placeholder-gray-600 font-mono"
                             />
                         </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm text-gray-300 flex items-center space-x-2">
+                                <Key size={14} />
+                                <span>{t.localApiKeyLabel}</span>
+                            </label>
+                            <input 
+                                type="password" 
+                                value={inputLocalKey}
+                                onChange={(e) => setInputLocalKey(e.target.value)}
+                                placeholder="sk-..."
+                                className="w-full bg-[#2d2d2d] border border-[#444] rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-[#e8b339] transition-colors placeholder-gray-600 font-mono"
+                            />
+                        </div>
                     </div>
                 )}
              </div>
@@ -317,22 +345,41 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                          <span>{t.addMcpServer}</span>
                       </button>
 
-                      {/* Presets Dropdown (Simple implementation) */}
-                      <div className="relative group">
-                          <button className="flex items-center space-x-1.5 px-3 py-1.5 bg-[#333] hover:bg-[#444] text-gray-300 text-xs rounded transition-colors border border-[#444]">
+                      {/* Presets Dropdown (Click to toggle + Click outside to close) */}
+                      <div className="relative">
+                          <button 
+                            onClick={() => setShowPresets(!showPresets)}
+                            className="flex items-center space-x-1.5 px-3 py-1.5 bg-[#333] hover:bg-[#444] text-gray-300 text-xs rounded transition-colors border border-[#444]"
+                          >
                              <span>{t.mcpPresets}</span>
+                             <ChevronDown size={10} className={`transform transition-transform duration-200 ${showPresets ? 'rotate-180' : ''}`} />
                           </button>
-                          <div className="absolute top-full left-0 mt-1 w-48 bg-[#252525] border border-[#333] rounded shadow-xl hidden group-hover:block z-10">
-                              {['Filesystem', 'Git', 'PostgreSQL', 'Google Drive', 'Brave Search'].map(p => (
-                                  <button 
-                                    key={p}
-                                    onClick={() => addPreset(p)}
-                                    className="w-full text-left px-4 py-2 text-xs text-gray-300 hover:bg-[#333] hover:text-white"
-                                  >
-                                      {p}
-                                  </button>
-                              ))}
-                          </div>
+                          
+                          {showPresets && (
+                            <>
+                                {/* Invisible overlay to handle click outside */}
+                                <div 
+                                    className="fixed inset-0 z-10 cursor-default" 
+                                    onClick={() => setShowPresets(false)}
+                                />
+                                
+                                {/* Dropdown Menu */}
+                                <div className="absolute top-full left-0 mt-1 w-48 bg-[#252525] border border-[#333] rounded shadow-xl z-20 animate-in fade-in zoom-in-95 duration-100 flex flex-col py-1">
+                                    {['Filesystem', 'GitHub', 'PostgreSQL', 'Google Drive', 'Brave Search'].map(p => (
+                                        <button 
+                                            key={p}
+                                            onClick={() => {
+                                                addPreset(p);
+                                                setShowPresets(false);
+                                            }}
+                                            className="w-full text-left px-4 py-2 text-xs text-gray-300 hover:bg-[#333] hover:text-white transition-colors"
+                                        >
+                                            {p}
+                                        </button>
+                                    ))}
+                                </div>
+                            </>
+                          )}
                       </div>
                   </div>
 
@@ -399,6 +446,23 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                                                 value={server.args?.join(' ')}
                                                 onChange={(e) => updateMcpServer(server.id, 'args', e.target.value)}
                                                 placeholder="-y @modelcontextprotocol/server-filesystem ..."
+                                                className="w-full bg-[#2d2d2d] border border-[#444] rounded px-2 py-1 text-xs text-white font-mono focus:outline-none focus:border-[#4cc2ff]"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] text-gray-500 uppercase">{t.mcpEnv}</label>
+                                            <input 
+                                                type="text" 
+                                                value={Object.entries(server.env || {}).map(([k, v]) => `${k}=${v}`).join(' ')}
+                                                onChange={(e) => {
+                                                    const newEnv: Record<string, string> = {};
+                                                    e.target.value.split(' ').forEach(pair => {
+                                                        const [key, val] = pair.split('=');
+                                                        if (key && val) newEnv[key] = val;
+                                                    });
+                                                    updateMcpServer(server.id, 'env', newEnv);
+                                                }}
+                                                placeholder="KEY=value OTHER=value"
                                                 className="w-full bg-[#2d2d2d] border border-[#444] rounded px-2 py-1 text-xs text-white font-mono focus:outline-none focus:border-[#4cc2ff]"
                                             />
                                         </div>

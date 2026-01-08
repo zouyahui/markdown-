@@ -47,7 +47,12 @@ export const TabBar: React.FC<TabBarProps> = ({
             `}
           >
             <FileText size={13} className={`mr-2 flex-shrink-0 ${isActive ? 'text-[#4cc2ff]' : 'text-gray-500'}`} />
-            <span className="truncate flex-1 mr-2">{file.name}</span>
+            
+            <span className="truncate flex-1 mr-2 flex items-center">
+                {file.name}
+                {file.isUnsaved && <span className="text-yellow-400 ml-0.5 mb-2 text-xs font-bold">*</span>} 
+            </span>
+
             <button
               onClick={(e) => {
                 e.stopPropagation();

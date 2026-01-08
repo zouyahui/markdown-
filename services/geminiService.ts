@@ -31,30 +31,34 @@ const getGeminiClient = (apiKey?: string) => {
 const chatWithLocalAI = async (
     baseUrl: string, 
     modelName: string, 
-    messages: { role: string; content: string }[]
+    messages: { role: string; content: string }[],
+    apiKey?: string
 ): Promise<string> => {
     
     // Try via Electron IPC first (avoids CORS)
     const ipc = getIpcRenderer();
     if (ipc) {
         try {
-            return await ipc.invoke('chat-local-ai', { baseUrl, modelName, messages });
+            return await ipc.invoke('chat-local-ai', { baseUrl, modelName, messages, apiKey });
         } catch (error: any) {
              console.error("IPC Local AI Failed", error);
-             throw new Error(`Local AI Error (IPC): ${error.message}`);
+             throw new Error(`${error.message}`); // Simplified error message
         }
     }
 
     // Fallback for browser-only mode (might fail CORS)
-    const url = `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
     
-    try {
-        const response = await fetch(url, {
+    const doFetch = async (targetUrl: string) => {
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+        };
+        if (apiKey) {
+            headers['Authorization'] = `Bearer ${apiKey}`;
+        }
+
+        const response = await fetch(targetUrl, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                // Add Authorization header if needed in future
-            },
+            headers,
             body: JSON.stringify({
                 model: modelName,
                 messages: messages,
@@ -68,7 +72,20 @@ const chatWithLocalAI = async (
 
         const data = await response.json();
         return data.choices?.[0]?.message?.content || "";
-    } catch (error) {
+    };
+
+    let cleanBase = baseUrl.replace(/\/+$/, '').replace(/\/chat\/completions$/, '');
+    const defaultUrl = `${cleanBase}/chat/completions`;
+
+    try {
+        return await doFetch(defaultUrl);
+    } catch (error: any) {
+         // Smart Retry Logic for 404s (Browser Side)
+        if (error.message.includes('404') && !cleanBase.includes('/v1')) {
+            console.log("[Local AI Browser] 404 encountered. Retrying with /v1 prefix...");
+            const v1Url = `${cleanBase}/v1/chat/completions`;
+            return await doFetch(v1Url);
+        }
         console.error("Local AI Request Failed", error);
         throw error;
     }
@@ -82,7 +99,7 @@ export const summarizeMarkdown = async (
     apiKey?: string, 
     language: Language = 'en',
     provider: AIProvider = 'gemini',
-    localConfig?: { baseUrl: string, model: string }
+    localConfig?: { baseUrl: string, model: string, apiKey?: string }
 ): Promise<string> => {
     
     const langInstruction = language === 'zh' ? "Please reply in Simplified Chinese." : "Please reply in English.";
@@ -97,7 +114,8 @@ export const summarizeMarkdown = async (
                 [
                     { role: 'system', content: systemPrompt },
                     { role: 'user', content: userPrompt }
-                ]
+                ],
+                localConfig.apiKey
             );
         } else {
             // Default to Gemini
@@ -114,6 +132,11 @@ export const summarizeMarkdown = async (
         if (error.message.includes("Missing API Key")) {
             return language === 'zh' ? "请在设置中配置 Gemini API Key。" : "Please set your Gemini API Key in Settings.";
         }
+        if (error.message.includes("401") || error.message.includes("Unauthorized")) {
+             return language === 'zh' 
+                ? "鉴权失败 (401)。请检查设置中的“本地 AI API Key”是否正确。" 
+                : "Authentication failed (401). Please check your Local AI API Key in Settings.";
+        }
         return language === 'zh' 
             ? `生成总结出错: ${error.message}` 
             : `Error generating summary: ${error.message}`;
@@ -128,7 +151,7 @@ export const chatWithDocument = async (
   apiKey?: string,
   language: Language = 'en',
   provider: AIProvider = 'gemini',
-  localConfig?: { baseUrl: string, model: string }
+  localConfig?: { baseUrl: string, model: string, apiKey?: string }
 ): Promise<string> => {
   
   const langInstruction = language === 'zh' ? "You must reply in Simplified Chinese." : "You must reply in English.";
@@ -156,7 +179,7 @@ export const chatWithDocument = async (
             { role: 'user', content: newMessage }
         ];
 
-        return await chatWithLocalAI(localConfig.baseUrl, localConfig.model, localMessages);
+        return await chatWithLocalAI(localConfig.baseUrl, localConfig.model, localMessages, localConfig.apiKey);
 
     } else {
         // Gemini Implementation
@@ -190,6 +213,11 @@ export const chatWithDocument = async (
     if (error.message.includes("Missing API Key")) {
         return language === 'zh' ? "请在设置中配置 Gemini API Key。" : "Please set your Gemini API Key in Settings.";
     }
+    if (error.message.includes("401") || error.message.includes("Unauthorized")) {
+        return language === 'zh' 
+           ? "鉴权失败 (401)。请检查设置中的“本地 AI API Key”是否正确。" 
+           : "Authentication failed (401). Please check your Local AI API Key in Settings.";
+   }
     return language === 'zh' 
         ? `抱歉，遇到错误: ${error.message}` 
         : `Sorry, I encountered an error: ${error.message}`;

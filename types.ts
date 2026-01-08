@@ -9,6 +9,7 @@ export interface FileDoc {
   path?: string; // Real system path
   isExpanded?: boolean; // For folders UI state
   chatHistory?: ChatMessage[];
+  isUnsaved?: boolean; // Track dirty state
 }
 
 export enum MessageRole {

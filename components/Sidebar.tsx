@@ -190,8 +190,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             className="w-full bg-[#111] text-white text-sm px-1 py-0.5 border border-[#0078d4] outline-none rounded-sm"
                         />
                     ) : (
-                        <div className={`truncate text-sm ${isSelected ? 'text-white' : 'text-gray-300 group-hover:text-white'}`}>
+                        <div className={`truncate text-sm flex items-center ${isSelected ? 'text-white' : 'text-gray-300 group-hover:text-white'}`}>
                             {item.name}
+                            {item.isUnsaved && <span className="text-yellow-400 ml-1 text-xs">*</span>}
                         </div>
                     )}
                 </div>

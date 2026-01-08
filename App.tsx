@@ -48,6 +48,7 @@ const App: React.FC = () => {
   const [aiProvider, setAiProvider] = useState<AIProvider>('gemini');
   const [localBaseUrl, setLocalBaseUrl] = useState(DEFAULT_LOCAL_CONFIG.baseUrl);
   const [localModelName, setLocalModelName] = useState(DEFAULT_LOCAL_CONFIG.model);
+  const [localApiKey, setLocalApiKey] = useState(''); // New state
   const [mcpServers, setMcpServers] = useState<MCPServerConfig[]>([]);
   
   // Hidden input for browser fallback
@@ -127,6 +128,9 @@ const App: React.FC = () => {
     const savedModelName = localStorage.getItem('winmd_local_model_name');
     if (savedModelName) setLocalModelName(savedModelName);
 
+    const savedLocalKey = localStorage.getItem('winmd_local_api_key');
+    if (savedLocalKey) setLocalApiKey(savedLocalKey);
+
     const savedMcpServers = localStorage.getItem('winmd_mcp_servers');
     if (savedMcpServers) {
         try {
@@ -185,6 +189,11 @@ const App: React.FC = () => {
     localStorage.setItem('winmd_local_model_name', name);
   };
 
+  const handleLocalApiKeyChange = (key: string) => {
+    setLocalApiKey(key);
+    localStorage.setItem('winmd_local_api_key', key);
+  };
+
   const handleMcpServersChange = (servers: MCPServerConfig[]) => {
       setMcpServers(servers);
       localStorage.setItem('winmd_mcp_servers', JSON.stringify(servers));
@@ -203,7 +212,8 @@ const App: React.FC = () => {
             type: f.type || 'file',
             parentId: f.parentId || null,
             isExpanded: f.isExpanded !== undefined ? f.isExpanded : false,
-            chatHistory: f.chatHistory || []
+            chatHistory: f.chatHistory || [],
+            isUnsaved: f.isUnsaved || false
           }));
           setFiles(migratedFiles);
           return;
@@ -281,7 +291,8 @@ graph TD
 2. **Create a Folder**: Organize your project structure.
 3. **Settings**: Click the gear icon to configure your **Gemini API Key**.
       `,
-      chatHistory: []
+      chatHistory: [],
+      isUnsaved: false
     };
     setFiles([welcomeFile]);
     setOpenFileIds(['welcome']);
@@ -341,6 +352,10 @@ graph TD
   };
 
   const handleCloseTab = (id: string) => {
+    // Check if file is unsaved before closing? 
+    // For now, simple closing (files persist in 'files' state anyway, just closed from view)
+    // If it was a new file (unsaved) and never saved to disk, it stays in Sidebar.
+    
     const newOpenIds = openFileIds.filter(fid => fid !== id);
     setOpenFileIds(newOpenIds);
     
@@ -532,7 +547,8 @@ graph TD
             parentId: null,
             lastModified: lastModified,
             path: filePath,
-            chatHistory: []
+            chatHistory: [],
+            isUnsaved: false
         };
 
         setFiles(prev => [...prev, newFile]);
@@ -588,7 +604,8 @@ graph TD
                 type: 'file',
                 parentId: null,
                 lastModified: file.lastModified,
-                chatHistory: []
+                chatHistory: [],
+                isUnsaved: false
             };
             setFiles(prev => [...prev, newFile]);
             handleFileActivate(newFile.id);
@@ -616,10 +633,10 @@ graph TD
               // Write file
               await ipc.invoke('write-file', savePath, file.content);
 
-              // Update file state with new path and name
+              // Update file state with new path and name, mark as saved
               const newName = savePath.replace(/^.*[\\/]/, '');
               setFiles(prev => prev.map(f => 
-                  f.id === file.id ? { ...f, path: savePath, name: newName, lastModified: Date.now() } : f
+                  f.id === file.id ? { ...f, path: savePath, name: newName, lastModified: Date.now(), isUnsaved: false } : f
               ));
               return;
 
@@ -639,6 +656,11 @@ graph TD
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      
+      // Mark as saved for browser too
+      setFiles(prev => prev.map(f => 
+        f.id === file.id ? { ...f, lastModified: Date.now(), isUnsaved: false } : f
+      ));
   };
 
   // Keyboard Shortcuts (Ctrl+S)
@@ -669,7 +691,8 @@ graph TD
         type: 'file',
         parentId: null, // Create in root by default
         lastModified: Date.now(),
-        chatHistory: []
+        chatHistory: [],
+        isUnsaved: true // New files are dirty until saved
     };
     setFiles(prev => [...prev, newFile]);
     handleFileActivate(newFile.id);
@@ -684,7 +707,8 @@ graph TD
       type: 'folder',
       parentId: null,
       lastModified: Date.now(),
-      isExpanded: true
+      isExpanded: true,
+      isUnsaved: false
     };
     setFiles(prev => [...prev, newFolder]);
   };
@@ -706,7 +730,7 @@ graph TD
   const handleContentChange = (newContent: string) => {
     if (!activeFileId) return;
     setFiles(prev => prev.map(f => 
-      f.id === activeFileId ? { ...f, content: newContent, lastModified: Date.now() } : f
+      f.id === activeFileId ? { ...f, content: newContent, lastModified: Date.now(), isUnsaved: true } : f
     ));
   };
 
@@ -977,6 +1001,7 @@ graph TD
                     aiProvider={aiProvider}
                     localBaseUrl={localBaseUrl}
                     localModelName={localModelName}
+                    localApiKey={localApiKey} // Added Prop
                 />
              )}
            </div>
@@ -1003,6 +1028,8 @@ graph TD
         onLocalBaseUrlChange={handleLocalBaseUrlChange}
         localModelName={localModelName}
         onLocalModelNameChange={handleLocalModelNameChange}
+        localApiKey={localApiKey} // Added Prop
+        onLocalApiKeyChange={handleLocalApiKeyChange} // Added Prop
         // MCP Props
         mcpServers={mcpServers}
         onMcpServersChange={handleMcpServersChange}

@@ -17,6 +17,7 @@ interface AIAssistantProps {
   aiProvider: AIProvider;
   localBaseUrl: string;
   localModelName: string;
+  localApiKey: string;
 }
 
 export const AIAssistant: React.FC<AIAssistantProps> = ({ 
@@ -31,7 +32,8 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
     allFiles,
     aiProvider,
     localBaseUrl,
-    localModelName
+    localModelName,
+    localApiKey
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>(chatHistory);
   const [input, setInput] = useState('');
@@ -96,7 +98,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
         apiKey, 
         language,
         aiProvider,
-        { baseUrl: localBaseUrl, model: localModelName }
+        { baseUrl: localBaseUrl, model: localModelName, apiKey: localApiKey }
     );
 
     const botMsg: ChatMessage = {
@@ -126,7 +128,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
         apiKey, 
         language,
         aiProvider,
-        { baseUrl: localBaseUrl, model: localModelName }
+        { baseUrl: localBaseUrl, model: localModelName, apiKey: localApiKey }
     );
     
     const botMsg: ChatMessage = {
